@@ -1,0 +1,42 @@
+{
+  "name": "@mitchcrm/frontend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Mitch CRM — Next.js 15 App Router 前端",
+  "license": "MPL-2.0",
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start -p 3000",
+    "type-check": "tsc --noEmit",
+    "clean": "rm -rf .next .turbo node_modules/.cache",
+    "lint": "eslint --config ../../scripts/lint/eslint.frontend.config.mjs \"src/**/*.{ts,tsx}\""
+  },
+  "dependencies": {
+    "@mitchcrm/shared": "workspace:*",
+    "clsx": "^2.1.1",
+    "leaflet": "1.9.4",
+    "next": "^15.5.25",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "tailwind-merge": "^2.6.1",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1",
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/leaflet": "1.9.12",
+    "@types/node": "^20.19.43",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
+    "autoprefixer": "^10.5.5",
+    "esbuild": "^0.28.2",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^15.5.25",
+    "fake-indexeddb": "^6.2.5",
+    "postcss": "^8.5.28",
+    "tailwindcss": "^4.3.3",
+    "tsx": "^4.23.13",
+    "typescript": "^5.9.3"
+  }
+}

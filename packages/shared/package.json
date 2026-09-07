@@ -1,0 +1,49 @@
+{
+  "name": "@mitchcrm/shared",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Mitch CRM 共用出廠語彙與組織時區日期計算(frontend + backend 共享)",
+  "license": "MPL-2.0",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./api": {
+      "types": "./dist/api/index.d.ts",
+      "require": "./dist/api/index.js",
+      "default": "./dist/api/index.js"
+    },
+    "./password": {
+      "types": "./dist/password.d.ts",
+      "require": "./dist/password.js",
+      "default": "./dist/password.js"
+    },
+    "./time": {
+      "types": "./dist/time/index.d.ts",
+      "require": "./dist/time/index.js",
+      "default": "./dist/time/index.js"
+    },
+    "./vocab": {
+      "types": "./dist/vocab/index.d.ts",
+      "require": "./dist/vocab/index.js",
+      "default": "./dist/vocab/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "lint": "node ../../scripts/lint/run-eslint-node.mjs \"src/**/*.ts\"",
+    "type-check": "tsc --noEmit",
+    "clean": "rm -rf dist .turbo *.tsbuildinfo"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

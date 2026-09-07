@@ -1,0 +1,66 @@
+# ref:3687 mc/陳彥輔/米球®
+# ────────────────────────────────────────────────────────────
+# repo 根目錄的 .dockerignore
+#
+# backend 與 frontend 兩個映像的 build context 都是 repo 根目錄,
+# 所以只有這一份 .dockerignore,兩邊共用。
+# (前端也有 workspace 相依 @mitchcrm/shared,context 收不進 apps/frontend。)
+#
+# 目的:不要把機密、大檔與本機產物複製進 build context。
+# ────────────────────────────────────────────────────────────
+
+# 版控
+.git/
+.gitignore
+.gitattributes
+
+# 機密:絕對不能進映像
+secrets/
+**/secrets/
+*.key
+*.pem
+
+# 環境變數走部署平台或 compose 注入,不從檔案讀
+.env
+.env.*
+!.env.example
+
+# 建置產物
+**/node_modules/
+**/.next/
+**/dist/
+**/build/
+**/.turbo/
+**/out/
+**/coverage/
+**/*.tsbuildinfo
+
+# 編輯器與作業系統
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# CI 與文件,runtime 用不到
+.github/
+accessibility-reports/
+**/docs/
+zeabur/
+
+# agent skill library,runtime 用不到
+
+# 壓縮檔、資料庫備份與 log
+# dump 的內容跟正式資料一模一樣,絕對不要被 COPY 進映像。
+*.tar
+*.tar.gz
+*.tgz
+*.zip
+*.dump
+*.dump.gz
+*.sql
+*.sql.gz
+backup*/
+*.log
+
+# 內部字串掃描的字面詞比對表(含 internal-terms.local.json 這類變體)。
+# 掃描是 CI 的事,runtime 用不到,而這份表本身不該進映像。

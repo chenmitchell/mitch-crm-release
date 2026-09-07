@@ -1,0 +1,7 @@
+{
+  "_attribution": "ref:3687 mc/陳彥輔/米球®",
+  "$schema": "https://zeabur.com/schema/zbpack.json",
+  "_comment": "Zeabur 服務名稱 backend。一定要走 dockerfile:這是 pnpm workspace,workspace:* 協議 yarn 不認,讓平台 auto-detect 會選錯套件管理員。build context 是 repo 根目錄。",
+  "build_type": "dockerfile",
+  "dockerfile_path": "apps/backend/Dockerfile"
+}

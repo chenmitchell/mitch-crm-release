@@ -1,0 +1,273 @@
+# ref:3687 mc/陳彥輔/米球®
+# =============================================================
+# Mitch CRM — Zeabur 一鍵部署範本
+# =============================================================
+# 重要:這份範本**不能照原樣部署**。下面 backend 與 frontend 兩個服務的 repoURL 目前是
+#    https://github.com/YOUR-ACCOUNT/mitch-crm 這個佔位字串,YOUR-ACCOUNT 不是真的帳號,
+#    直接匯入的話 Zeabur 拉不到原始碼,建置會失敗。
+#
+# 用法:
+#   1. 先把這個 repo fork 到自己的 GitHub 帳號。
+#   2. 把下面兩處 repoURL 的 YOUR-ACCOUNT 換成你自己的 GitHub 帳號(或組織)名稱,
+#      也就是你 fork 出來的那個 repo 的網址。兩處都要改,少改一處就會有一個服務起不來。
+#   3. Zeabur 主控台 → Template → Import YAML,把這份貼進去,或用 CLI:
+#        npx zeabur template deploy -f zeabur/template.yaml
+#
+# 部署出來是三個服務:postgres、backend、frontend。
+#
+# 服務名稱一定要維持 backend / frontend:repo 根目錄的
+# zbpack.backend.json 與 zbpack.frontend.json 是照服務名稱對應的,
+# 名稱不一致的話平台會退回 auto-detect,而 auto-detect 會把這個
+# pnpm workspace 誤判成 yarn 專案(yarn 不認 workspace:* 協議),建置必定失敗。
+#
+# 金鑰:只有一把 JWT_ACCESS_SECRET。留空的話 backend 第一次啟動會自己產生,
+# 寫進 secrets 這顆 volume。
+# ★ 但那條路要求容器內的 uid 1001 對 /var/lib/mitchcrm/secrets 有寫入權。
+#   平台把 volume 掛成 root 所有時,entrypoint 寫不進去會印出錯誤並 exit 1,
+#   服務就會一直重啟。看到那個訊息就直接在 backend 服務的環境變數填一個
+#   至少 32 字元的 JWT_ACCESS_SECRET(openssl rand -base64 48),
+#   填了之後整段自動產生的邏輯是 no-op,volume 寫不寫得進去都不影響啟動。
+#   正式使用本來就建議自己指定並離線備份。
+#
+# NEXT_PUBLIC_*:這三個是 **build 時** 就編進 bundle 的,不是啟動時讀的。
+# Zeabur 會把服務的環境變數當成 docker build 的 build-arg 傳進去,frontend 的
+# Dockerfile 也宣告了對應的 ARG,所以填在服務設定裡是對的。但改了值之後
+# **一定要重新建置**(Redeploy 觸發 build),只重啟不會生效。
+# 沒有生效的症狀是:畫面打得開,但所有 API 都打到 http://localhost:8080,
+# 瀏覽器主控台一片連線失敗,伺服器端 log 什麼都沒有。
+#
+# 資料表:backend 啟動時自己建(prisma db push + 程式內的 startup migrations),
+# 不需要進終端機下指令。
+# =============================================================
+
+apiVersion: zeabur.com/v1
+kind: Template
+metadata:
+  name: Mitch CRM
+spec:
+  description: 實地訪查型 CRM。業務開發看板、客戶卡、GPS 到訪打卡與照片存證、拜訪地圖與排程、日報與戰情圖表。
+  tags:
+    - CRM
+    - Next.js
+    - NestJS
+  readme: |-
+    # Mitch CRM
+
+    通用的實地訪查型 CRM。部署完成後:
+
+    1. 打開 frontend 服務的網址。
+    2. 立刻走完首次啟動精靈,第二步設定你自己的管理員帳號密碼。
+       在帳號建立之前,那個網址對所有人開放,先完成的人就是管理員。
+    3. 進系統設定調整團隊、使用者與邀請連結。
+
+    ## 初始管理員
+
+    兩種方式擇一,不必進終端機下任何指令。
+
+    1. **首次啟動精靈(預設)**:什麼都不用填,打開 frontend 的網址就會出現。
+       注意這個網址在帳號建立之前對所有人開放,先完成的人就是管理員,
+       所以部署完成後請馬上走完。
+    2. **環境變數**:在 backend 服務同時填 `SEED_ADMIN_EMAIL` 與
+       `SEED_ADMIN_PASSWORD`(至少 12 個字元),起站時帳號就已經存在,
+       精靈不會出現,沒有那段空窗。只填其中一個不會建帳號。
+
+    資料表由 backend 啟動時自動建立(`prisma db push` 加上程式內的
+    startup migrations),不需要人工介入。真的要手動再跑一次的話,
+    在 backend 服務的終端機下:
+
+    ```
+    node /opt/prisma-cli/node_modules/prisma/build/index.js db push --skip-generate --schema=/app/prisma/schema.prisma
+    ```
+
+    ## 金鑰
+
+    `JWT_ACCESS_SECRET` 留空時由 backend 自動產生並存進 secrets volume。
+    正式使用請自己指定並離線備份(`openssl rand -base64 48`,至少 32 字元)。
+
+    backend 一直重啟、log 出現「金鑰目錄無法建立」或「不可寫入」的話,
+    是那顆 volume 對容器內的 uid 1001 沒有寫入權。直接把 `JWT_ACCESS_SECRET`
+    填進環境變數就會繞過整段自動產生的邏輯,服務立刻起得來。
+
+  services:
+    # ── PostgreSQL 16 ───────────────────────────────────────
+    - name: postgres
+      icon: https://raw.githubusercontent.com/zeabur/service-icons/main/marketplace/postgresql.svg
+      template: PREBUILT_V2
+      spec:
+        source:
+          image: postgres:16-alpine
+        ports:
+          - id: database
+            port: 5432
+            type: TCP
+        volumes:
+          - id: data
+            dir: /var/lib/postgresql/data
+        instructions:
+          - type: TEXT
+            title: 連線字串(內網)
+            content: ${POSTGRES_CONNECTION_STRING}/${POSTGRES_DATABASE}
+          - type: PASSWORD
+            title: 資料庫密碼
+            content: ${POSTGRES_PASSWORD}
+        env:
+          PGDATA:
+            default: /var/lib/postgresql/data/pgdata
+          POSTGRES_DB:
+            default: mitchcrm
+          POSTGRES_USER:
+            default: mitchcrm
+          POSTGRES_PASSWORD:
+            default: ${PASSWORD}
+          POSTGRES_DATABASE:
+            default: mitchcrm
+            expose: true
+            readonly: true
+          POSTGRES_USERNAME:
+            default: mitchcrm
+            expose: true
+            readonly: true
+          POSTGRES_HOST:
+            default: ${CONTAINER_HOSTNAME}
+            expose: true
+            readonly: true
+          POSTGRES_PORT:
+            default: ${DATABASE_PORT}
+            expose: true
+            readonly: true
+          POSTGRES_CONNECTION_STRING:
+            default: postgresql://mitchcrm:${POSTGRES_PASSWORD}@${CONTAINER_HOSTNAME}:${DATABASE_PORT}
+            expose: true
+            readonly: true
+
+    # ── 後端(NestJS)────────────────────────────────────────
+    - name: backend
+      icon: https://raw.githubusercontent.com/zeabur/service-icons/main/marketplace/nestjs.svg
+      template: GIT
+      domainKey: BACKEND_DOMAIN
+      spec:
+        source:
+          # ⬇ 佔位字串,必須改成你 fork 出來的 repo 網址(把 YOUR-ACCOUNT 換掉),
+          #   不改的話這個服務拉不到原始碼
+          repoURL: https://github.com/YOUR-ACCOUNT/mitch-crm
+          branch: main
+        ports:
+          - id: web
+            port: 8787
+            type: HTTP
+        volumes:
+          # 自動產生的金鑰存這裡。刪掉這顆 volume 等同刪掉金鑰。
+          - id: secrets
+            dir: /var/lib/mitchcrm/secrets
+        env:
+          NODE_ENV:
+            default: production
+          # 容器內監聽的埠。改這裡要連 ports.web.port 一起改,兩邊必須一致。
+          PORT:
+            default: '8787'
+          DATABASE_URL:
+            default: ${POSTGRES_CONNECTION_STRING}/${POSTGRES_DATABASE}?schema=public
+          # 前端的對外網址。同時是 CORS 白名單、CSRF 的來源白名單,以及後台產生的
+          # 邀請連結與 SSO 導回位址的網址前綴。系統不會替你把連結寄出去(後端沒有
+          # 任何寄信實作),但這個值填錯的話,連登入都會被那道來源檢查擋成 403,
+          # 而且不會有明顯的錯誤 log。
+          CORS_ORIGIN:
+            default: https://${FRONTEND_DOMAIN}
+          # 初始管理員。兩個都留空 = 走瀏覽器上的首次啟動精靈(預設)。
+          # 要跳過精靈就兩個都填,只填一個不會建帳號,也不會有錯誤訊息。
+          SEED_ADMIN_EMAIL:
+            default: ''
+          # 至少 12 個字元。太短的話後端開機當下就停下來並印出原因。
+          # 建好帳號之後建議把這一格清空:它已經沒有 runtime 用途,
+          # 值卻會留在平台的設定畫面與部署紀錄裡。
+          SEED_ADMIN_PASSWORD:
+            default: ''
+          # 金鑰留空 = 由 backend 自動產生並寫進 secrets volume。
+          # 正式使用請自己填,並且離線備份。
+          JWT_ACCESS_SECRET:
+            default: ''
+          # 離開多久之後要重新登入。還在操作的話效期過半會自動重簽,不會被踢出去。
+          JWT_ACCESS_TTL:
+            default: 8h
+          # 走 https,cookie 一定要帶 Secure
+          COOKIE_SECURE:
+            default: 'true'
+          # 登入 cookie 的 SameSite。這個範本把前後端拆成兩個網域,
+          # 只要那兩個網域的**可註冊網域**不同(例如前端綁 crm.example.com、
+          # 後端還留在平台配發的網域),瀏覽器就把登入請求視為跨站,
+          # SameSite=lax 的 cookie 根本不會被送出去。症狀是登入回應 200、
+          # 下一個請求就變成未登入,而且後端 log 完全正常,從伺服器側看不出異常。
+          # 遇到這個症狀就把這一格改成 none(COOKIE_SECURE 必須同時是 true)。
+          # 改成 none 等於少掉一道 CSRF 防線,還剩後端的 Origin 檢查擋著,
+          # 取捨與細節見 SECURITY.md 與 .env.example 的同名段落。
+          COOKIE_SAMESITE:
+            default: lax
+          # Zeabur 的邊緣 proxy 是一層
+          TRUST_PROXY_HOPS:
+            default: '1'
+          LOGIN_MAX_ATTEMPTS:
+            default: '5'
+          LOGIN_LOCKOUT_MINUTES:
+            default: '30'
+          THROTTLE_TTL_SECONDS:
+            default: '60'
+          THROTTLE_LIMIT_DEFAULT:
+            default: '100'
+          THROTTLE_LIMIT_STRICT:
+            default: '10'
+          # 稽核記錄的保留期(天)。0 = 永不刪除,其餘只接受 90 到 3650。
+          # 稽核記錄是事後追查用的證據,預設兩年,理由見 apps/backend/src/common/env.ts
+          AUDIT_LOG_RETENTION_DAYS:
+            default: '730'
+          # 選用:拜訪地圖的地理編碼(OpenStreetMap Nominatim)聯絡信箱
+          NOMINATIM_EMAIL:
+            default: ''
+          # 選用:Microsoft Entra ID 單一登入。四個都留空就是不啟用,只有帳號密碼登入。
+          # 後台的「單一登入設定」存的是政策,不存憑證,所以這四個只能從這裡給。
+          ENTRA_TENANT_ID:
+            default: ''
+          ENTRA_CLIENT_ID:
+            default: ''
+          ENTRA_CLIENT_SECRET:
+            default: ''
+          # 要與 Entra 應用程式註冊裡的重新導向 URI 一字不差,結尾不要多斜線
+          ENTRA_REDIRECT_URI:
+            default: ''
+          # 下面三個後台也能改,而且後台的值優先,這裡只是第一次上線的起始值
+          ENTRA_ALLOWED_DOMAINS:
+            default: ''
+          ENTRA_AUTO_PROVISION:
+            default: 'false'
+          ENTRA_POST_LOGIN_URL:
+            default: ''
+
+    # ── 前端(Next.js)──────────────────────────────────────
+    - name: frontend
+      icon: https://raw.githubusercontent.com/zeabur/service-icons/main/marketplace/nextjs.svg
+      template: GIT
+      domainKey: FRONTEND_DOMAIN
+      spec:
+        source:
+          # ⬇ 佔位字串,必須改成你 fork 出來的 repo 網址(把 YOUR-ACCOUNT 換掉),
+          #   不改的話這個服務拉不到原始碼
+          repoURL: https://github.com/YOUR-ACCOUNT/mitch-crm
+          branch: main
+        ports:
+          - id: web
+            port: 3000
+            type: HTTP
+        env:
+          NODE_ENV:
+            default: production
+          PORT:
+            default: '3000'
+          HOSTNAME:
+            default: 0.0.0.0
+          # NEXT_PUBLIC_* 是 build 時就編進 bundle 的,改了要重新建置才生效。
+          # Zeabur 上前後端是兩個網域,所以這裡指到 backend 的網址。
+          NEXT_PUBLIC_API_BASE_URL:
+            default: https://${BACKEND_DOMAIN}
+          NEXT_PUBLIC_SITE_URL:
+            default: https://${FRONTEND_DOMAIN}
+          NEXT_PUBLIC_APP_ENV:
+            default: production

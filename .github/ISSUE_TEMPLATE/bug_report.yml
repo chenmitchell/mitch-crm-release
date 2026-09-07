@@ -1,0 +1,82 @@
+# ref:3687 mc/陳彥輔/米球®
+# CONTRIBUTING.md 的「開 issue:回報問題」必寫項目,做成表單。
+name: 回報問題
+description: 系統的行為跟預期不一樣
+labels: ['bug']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **安全性問題請不要開在這裡。** 照 [SECURITY.md](../blob/main/SECURITY.md) 的方式私下回報:
+        寄信到 `mitchellchen@gmail.com`,主旨加上 `[Mitch CRM security]`。
+        公開的漏洞回報會讓所有已經裝了這套系統的人暴露在風險裡。
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: 發生什麼
+      description: 實際看到的行為。畫面上的訊息請照抄,不要轉述。
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 預期是什麼
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 怎麼重現
+      description: 從登入之後的第一步開始寫,寫到出問題那一步為止。
+      placeholder: |
+        1. 用訪查人員的角色登入
+        2. 進開發看板
+        3. 把某一張卡從「待訪查」拖到「已訪查」
+        4. 畫面回到頂端,卡片還在原本那一欄
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: 版本
+      description: 用的是哪一個 tag 或哪一個 commit。
+      placeholder: v0.1.0 / 或 commit 的前七碼
+    validations:
+      required: true
+
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: 部署方式
+      options:
+        - Docker Compose(repo 內建的那一份)
+        - Docker Compose 接外部 PostgreSQL
+        - Zeabur 或其他 PaaS
+        - 自架(自己寫的編排或 Kubernetes)
+        - 本機開發(pnpm dev)
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 相關的 log
+      description: |
+        後端 `docker compose logs backend`、瀏覽器 console、Network 頁籤的回應都有幫助。
+        **貼出來之前請自己看一遍有沒有帶到真實資料。** 客戶姓名、電話、地址、座標、
+        照片、權杖、金鑰一律要遮掉或換成假值。
+      render: shell
+
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: 送出前確認
+      options:
+        - label: 我已經確認 log 與截圖裡沒有真實個資、金鑰或權杖
+          required: true
+        - label: 我已經在最新的釋出版上重現過,或說明了為什麼沒辦法
+          required: false

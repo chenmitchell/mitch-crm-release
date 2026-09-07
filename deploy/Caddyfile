@@ -1,0 +1,43 @@
+# ref:3687 mc/陳彥輔/米球®
+# =============================================================
+# Mitch CRM — 反向代理設定
+# =============================================================
+# 前後端共用一個對外網址,依路徑分流。這樣就不用處理 CORS,
+# session cookie 也不會因為跨網域被瀏覽器丟掉。
+#
+# SITE_ADDRESS(來自 .env):
+#   :80             純 HTTP。適合本機試跑,或前面已經有 LB / WAF 處理 TLS。
+#   crm.example.com Caddy 自動申請並續期 Let's Encrypt 憑證。
+#                   需要 APP_PORT=80、APP_HTTPS_PORT=443,
+#                   而且 DNS 已經指到這台機器。
+#   內網用自簽或自有 CA 憑證:把下面的 tls 那行取消註解,並掛載憑證檔進容器。
+#
+# BACKEND_PORT 跟 compose 用同一個變數,改一個地方兩邊一起變,不寫死。
+# =============================================================
+
+{
+	admin off
+}
+
+{$SITE_ADDRESS::80} {
+	encode zstd gzip
+
+	# 用自己的憑證時取消註解,並在 compose 的 caddy service 掛載這兩個檔
+	# tls /etc/caddy/certs/server.crt /etc/caddy/certs/server.key
+
+	# 後端:NestJS 的 global prefix 是 /api,健康檢查兩支被排除在 prefix 外
+	@backend path /api/* /healthz /readyz
+	handle @backend {
+		reverse_proxy backend:{$BACKEND_PORT:8787}
+	}
+
+	# 其餘全部給 Next.js
+	handle {
+		reverse_proxy frontend:3000
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

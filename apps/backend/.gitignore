@@ -1,0 +1,24 @@
+# apps/backend 本地覆寫
+
+# Nest build
+/dist/
+/.turbo/
+*.tsbuildinfo
+
+# Env
+.env
+.env.*
+!.env.example
+
+# Prisma dev db
+/prisma/migrations/dev.db*
+/prisma/dev.db*
+
+# Logs
+*.log
+
+# Coverage
+/coverage/
+
+# 暫存:本機建置與驗證輸出
+/.build-tmp/

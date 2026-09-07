@@ -1,0 +1,6 @@
+{
+  "_attribution": "ref:3687 mc/陳彥輔/米球®",
+  "$schema": "https://zeabur.com/schema/zbpack.json",
+  "_comment": "monorepo 根目錄的 fallback。這個 repo 不是單一 app,根目錄不該被 auto-detect 成任何東西。每個服務自己的設定在 zbpack.<服務名稱>.json,服務名稱要跟 Zeabur 上建立的服務同名(backend / frontend)。",
+  "ignore_build": true
+}

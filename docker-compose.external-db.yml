@@ -1,0 +1,41 @@
+# ref:3687 mc/陳彥輔/米球®
+# =============================================================
+# Mitch CRM — 接既有 PostgreSQL 的 compose 疊加檔
+# =============================================================
+# 用途:照主檔起前後端與反向代理,但資料庫用你自己那台,
+#       不要 compose 內建的 postgres 容器。
+#
+# 為什麼要有這一份:主檔的 backend 用 depends_on 指著 postgres,
+# 直接把那個 service 註解掉的話 compose 會判定整個專案無效
+# (service "backend" depends on undefined service "postgres"),
+# 連 config 都過不了。所以改用疊加檔把 service 與 depends_on 一起移除。
+#
+# 用法:
+#   1. 在 .env 設整串 DATABASE_URL(設了就會蓋掉主檔組出來的內網連線字串):
+#        DATABASE_URL=postgresql://帳號:密碼@資料庫主機:5432/資料庫?schema=public
+#      密碼含 @ : / ? # 等字元要先做 URL 編碼。
+#
+#   2. 先確認解析結果(唯讀,不會啟動任何東西):
+#        docker compose -f docker-compose.yml -f docker-compose.external-db.yml config
+#      看 backend.environment.DATABASE_URL 是不是你填的那一串,
+#      而且輸出裡已經沒有 postgres 這個 service。
+#
+#   3. 之後每一次 compose 指令都要帶同一組 -f,順序不能換:
+#        docker compose -f docker-compose.yml -f docker-compose.external-db.yml up -d --build
+#      少帶一個 -f 的話 compose 會退回主檔,又把內建的 postgres 起起來。
+#
+# 前置作業:資料庫要先建好一個空的 database 與一組有建表權限的帳號。
+# 建表仍然由 backend 啟動時自己做(prisma db push + 程式內的 startup migrations),
+# 不需要你手動跑 prisma。
+#
+# 如果貴單位的資料庫由 DBA 管控、不允許應用程式自己建表,
+# 在 .env 設 MITCHCRM_SKIP_DB_PUSH=true,改由 DBA 依 prisma/schema.prisma 建表。
+# =============================================================
+
+services:
+  # 移除內建的資料庫容器
+  postgres: !reset null
+
+  # backend 原本等 postgres 健康檢查,外部資料庫沒有這個依賴可等
+  backend:
+    depends_on: !override []

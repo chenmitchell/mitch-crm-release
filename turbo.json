@@ -1,0 +1,80 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "globalDependencies": ["**/.env.*local", "tsconfig.base.json"],
+  "tasks": {
+    // prisma generate 產出的是 node_modules/.prisma/client,不是套件目錄裡的檔案,
+    // 所以它不能靠 `^build`(上游套件的 build)帶出來 —— apps/backend 自己的 build
+    // 才會跑到它,而 type-check 與 test 都不 dependsOn 自己的 build。
+    // 乾淨 checkout 上的後果是 `pnpm test` 有一半的 suite 直接 Cannot find module
+    // '.prisma/client/default',`pnpm type-check` 噴上百個 TS error,而錯誤訊息
+    // 看起來像原始碼壞掉,第一個外部貢獻者照 CONTRIBUTING.md 跑就會撞到。
+    // 拉成獨立 task 之後,本機與 CI 走同一條路,不必靠人記得先下 prisma generate。
+    // cache: false 的理由:產物在 node_modules 裡,turbo 的 outputs 蓋不住它,
+    // 而且這一步只有一兩秒,重跑比快取失準便宜。
+    "prisma:generate": {
+      "cache": false,
+      "outputs": [],
+      "passThroughEnv": [
+        "PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING",
+        "PRISMA_SCHEMA_ENGINE_BINARY",
+        "PRISMA_QUERY_ENGINE_LIBRARY",
+        "PRISMA_QUERY_ENGINE_BINARY",
+        "PRISMA_CLI_QUERY_ENGINE_TYPE",
+        "PRISMA_SKIP_POSTINSTALL_GENERATE",
+        "CHECKPOINT_DISABLE"
+      ]
+    },
+    "build": {
+      "dependsOn": ["^build", "prisma:generate"],
+      "outputs": [".next/**", "!.next/cache/**", "dist/**"],
+      "env": ["NODE_ENV", "NEXT_PUBLIC_*"],
+      // passThroughEnv 的用途:這幾個變數不影響產物內容,所以不該進 cache key(那會讓每台機器算出不同的 hash),但一定要傳進子行程。
+      // turbo 2 的 strict env mode 預設只把 env 列到的變數傳下去,沒列的一律濾掉。
+      // apps/backend 的 build 第一步是 prisma generate,它會去下載引擎;沒有對外網路的環境(離線 CI、沙箱)靠 PRISMA_* 這組指到本機既有的檔案並跳過 checksum 檢查才跑得起來。
+      // 濾掉的話 build 會卡在下載逾時。有網路的機器不設這些變數,行為完全不變,所以列在這裡是兩種情況都能跑,不是只為沙箱開的後門。
+      // NEXT_FONT_GOOGLE_MOCKED_RESPONSES 同理:next/font/google 在 build 時會連 Google Fonts,離線時用這個指到本機的假回應。
+      "passThroughEnv": [
+        "PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING",
+        "PRISMA_SCHEMA_ENGINE_BINARY",
+        "PRISMA_QUERY_ENGINE_LIBRARY",
+        "PRISMA_QUERY_ENGINE_BINARY",
+        "PRISMA_CLI_QUERY_ENGINE_TYPE",
+        "PRISMA_SKIP_POSTINSTALL_GENERATE",
+        "CHECKPOINT_DISABLE",
+        "NEXT_FONT_GOOGLE_MOCKED_RESPONSES"
+      ]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "lint": {
+      "outputs": []
+    },
+    "type-check": {
+      "outputs": [],
+      "dependsOn": ["^build", "prisma:generate"],
+      "passThroughEnv": [
+        "PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING",
+        "PRISMA_SCHEMA_ENGINE_BINARY",
+        "PRISMA_QUERY_ENGINE_LIBRARY",
+        "PRISMA_QUERY_ENGINE_BINARY",
+        "PRISMA_CLI_QUERY_ENGINE_TYPE",
+        "PRISMA_SKIP_POSTINSTALL_GENERATE",
+        "CHECKPOINT_DISABLE"
+      ]
+    },
+    // outputs 是空的,不是漏寫。這一格原本是 ["coverage/**"],但兩個套件的
+    // test script 都沒有產 coverage:apps/backend 跑的是 `jest`(沒有 --coverage),
+    // apps/frontend 的兩條 runner(node:test 與 Playwright 的 list reporter)
+    // 一個檔都不產。實跑的後果是每一次 `pnpm test` 收尾都會多一行
+    //   WARNING no output files found for task @mitchcrm/backend#test
+    // 那句話的意思是「你宣告的產物根本不存在,快取設定跟現實對不上」,
+    // 而它天天出現就會被當成背景雜訊 —— 哪天真的有產物漏設,沒有人會注意到。
+    // 之後若要開 coverage,把 outputs 寫在**該套件自己的 turbo.json**
+    // (package configuration),不要再回來寫一份給全部套件共用的。
+    "clean": {
+      "cache": false
+    }
+  }
+}

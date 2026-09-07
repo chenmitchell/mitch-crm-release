@@ -1,0 +1,123 @@
+# =====================================
+# Mitch CRM monorepo - .gitignore
+# =====================================
+
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+.next/
+.turbo/
+out/
+*.tsbuildinfo
+
+# Environment files (所有 .env 都不入 Repo)
+.env
+.env.*
+!.env.example
+!.env.template
+
+# 機密資料夾:絕不能 commit
+/secrets/
+**/secrets/
+*.key
+*.pem
+*.pfx
+jwt-secret.txt
+admin-initial-password.txt
+
+# 資料庫備份與匯出檔:絕不能 commit
+# docs/安裝與部署.md 教的 pg_dump 指令,工作目錄就是 repo 根目錄(README 的安裝流程
+# 要人先 cd 進來),所以 backup-2026-09-01.dump / pre-upgrade.dump 這種檔案會直接落在
+# 這裡。dump 的內容跟正式資料一模一樣:客戶姓名、電話、地址、到訪座標與照片全是明文,
+# 一次誤 commit 就是整份客戶資料上公開 repo。備份請放在 repo 以外的目錄。
+*.dump
+*.dump.gz
+*.sql
+*.sql.gz
+*.tar
+*.tar.gz
+*.tgz
+*.zip
+backup*/
+
+# 例外:Prisma migration 的 SQL 是原始碼,不是備份。目前 repo 走 `prisma db push`,
+# 沒有 prisma/migrations/ 目錄,但哪天改成 migration 流程的話,上面那條 *.sql
+# 會把 migration.sql 整個吃掉,而且是安靜地吃掉(git status 什麼都不顯示)。
+!**/prisma/migrations/**/*.sql
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.recommended.json
+.idea/
+*.swp
+*.swo
+
+# Test coverage
+coverage/
+.nyc_output/
+*.lcov
+
+# Prisma
+/apps/backend/prisma/migrations/dev.db*
+/apps/backend/prisma/dev.db*
+
+# Next.js
+.next/
+next-env.d.ts
+
+# Vercel
+.vercel
+
+# Cache
+.cache/
+.eslintcache
+.stylelintcache
+.parcel-cache
+
+# Temp
+*.tmp
+*.temp
+.~lock.*
+
+# Accessibility report 本地暫存(正式報告在 accessibility-reports/)
+/lighthouse-*.html
+
+# 本機建置與驗證的暫存輸出
+/.build-tmp/
+
+# scan-internal-strings.mjs --self-test 的暫存探針檔(正常會自己刪掉,中途被中斷才會留下)
+.internal-strings-selftest-probe.txt
+
+# 內部字串掃描的字面詞比對表:不進公開 repo(理由見 scan-internal-strings.mjs 檔頭)。
+# 表裡的詞熵很低、可離線還原,雜湊本身不提供公開等級的保護,而且它保護的是
+# 不屬於作者的第三人資訊。維護者在自己的環境用 --init-terms 產生,CI 從 secret 注入。
+# repo 裡只留 internal-terms.example.json(空範例)。
+# 一律擋掉 internal-terms 開頭的比對表(internal-terms.local.json、
+# internal-terms.2026.json 這類變體,以及用 INTERNAL_TERMS_FILE 指到別處前的暫存檔),
+# 只放行空範例那一份。
+
+# Playwright(前端瀏覽器測試)的執行產物。
+# test-results/ 是失敗時的 trace 與截圖,playwright-report/ 是 HTML 報告,
+# .last-run.json 是「上一次跑到哪」的紀錄 —— 三個都是每次跑都會變的本機狀態,
+# 不進版控,也不該進 prettier 的檢查範圍(.prettierignore 有對應的一行)。
+apps/frontend/test-results/
+apps/frontend/playwright-report/
+apps/frontend/blob-report/

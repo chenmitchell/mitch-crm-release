@@ -1,0 +1,10 @@
+# ref:3687 mc/陳彥輔/米球®
+# 把不該開成公開 issue 的兩類事情導到別的地方。
+blank_issues_enabled: false
+contact_links:
+  - name: 回報安全性漏洞
+    url: https://github.com/chenmitchell/mitch-crm/blob/main/SECURITY.md
+    about: 請不要開公開 issue。寄信到 mitchellchen@gmail.com,主旨加上 [Mitch CRM security]。
+  - name: 安裝、部署與設定的問題
+    url: https://github.com/chenmitchell/mitch-crm/blob/main/docs/%E5%AE%89%E8%A3%9D%E8%88%87%E9%83%A8%E7%BD%B2.md
+    about: 起不來、502、登入被踢回登入頁、備份還原,先看安裝與部署文件的常見問題。

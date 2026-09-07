@@ -1,0 +1,46 @@
+# ref:3687 mc/陳彥輔/米球®
+# CONTRIBUTING.md 的「開 issue:提功能」必寫項目,做成表單。
+name: 提功能
+description: 希望系統多做一件事
+labels: ['enhancement']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        從情境出發比較容易討論。直接丟一句「請加某某功能」通常會先被問回去,
+        因為不知道你實際卡在哪裡,也就沒辦法判斷有沒有更省事的做法。
+
+  - type: textarea
+    id: situation
+    attributes:
+      label: 你遇到的實際情境是什麼
+      description: 誰、在什麼時候、想完成什麼事。
+    validations:
+      required: true
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: 現在怎麼處理
+      description: 目前的替代做法,以及它為什麼不夠用。
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 希望系統怎麼做
+      description: 有具體想法就寫,沒有也可以只寫情境。
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: principles
+    attributes:
+      label: 對照一下產品原則
+      description: |
+        這套系統的原則是「後台控制前台」:面向使用者的清單一律從設定讀,
+        不寫死在前端。
+      options:
+        - label: 這個功能如果會帶出一份新的清單(階段、類型、項目…),我理解它需要一起有後台設定頁
+          required: false

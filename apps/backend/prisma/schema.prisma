@@ -1,0 +1,448 @@
+// Mitch CRM — Prisma schema
+// 欄位命名以 snake_case(SQL),Prisma client 會自動 camelCase。
+// 資料表前綴 dev_ 是歷史命名(開發客戶),語意等同「訪查客戶」,改名風險大於效益故保留。
+// ref:3687 mc/陳彥輔/米球® 姓名表示權保留,見 LICENSE
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// users — 訪查人員 + Admin(不做客戶帳號,客戶走 token link)
+//
+// 這三個值就是全部,跟 users/dto/update-user.dto.ts 的 ASSIGNABLE_ROLES 一字不差。
+// 新增角色要同時改四處:這裡、ASSIGNABLE_ROLES、crm.controller 的 assertCrm、
+// 前端 lib/roles.ts。少改任何一處的症狀都是「建得起來但登進去一片空白」。
+//
+// 列舉曾經多出 merchant_ops / risk_control / management 三個前身系統的產業角色。
+// 既有資料的處理:這個 repo 的任何一版都不曾讓那三個值寫進 users.role ——
+// 建立與編輯兩支 DTO 從一開始就用 ASSIGNABLE_ROLES 白名單擋著,SSO 自動建帳號
+// 寫死 sales,初始管理員與首次啟動精靈寫死 admin,邀請連結接受時寫死 sales。
+// 所以照這個 repo 裝起來的資料庫,role 只可能是下面這三個值,拿掉那三個值的
+// `prisma db push` 不會撞到「還有資料在用」。0.1.0 是公開歷史的起點、沒有升級路徑,
+// 更早的內部部署不在這個 repo 的守備範圍(見 CHANGELOG 與 startup-migrations.ts 檔頭)。
+enum UserRole {
+  admin
+  sales
+  sales_manager
+}
+
+enum UserStatus {
+  active
+  disabled
+}
+
+model User {
+  id                   String     @id @default(uuid()) @db.Uuid
+  email                String     @unique @db.VarChar(255)
+  passwordHash         String     @map("password_hash") @db.VarChar(255)
+  name                 String     @db.VarChar(100)
+  m365Email            String?    @map("m365_email") @db.VarChar(255)
+  // 承辦窗口聯絡資料(對客戶顯示的聯絡方式)
+  phone                String?    @db.VarChar(40)
+  mobile               String?    @db.VarChar(40)
+  title                String?    @db.VarChar(40)
+  extension            String?    @db.VarChar(20)
+  department           String?    @db.VarChar(100)                       // 自由輸入的部門名稱(相容既有資料 / M365 同步)
+  departmentId         String?    @map("department_id") @db.Uuid          // 組織部門(departments 表),多部門多主管的權限依據
+  departmentRef        Department? @relation("UserDepartment", fields: [departmentId], references: [id], onDelete: SetNull)
+  role                 UserRole   @default(sales)
+  status               UserStatus @default(active)
+  mustChangePassword   Boolean    @default(false) @map("must_change_password")
+  // 密碼最後一次變更的時間。用來讓「改密碼 / 重設密碼之前簽出去的權杖」立刻失效:
+  // JwtStrategy 會拿權杖的 iat 跟這一格比,比它早的一律 401(見 auth/session-user.service.ts)。
+  // null = 從未換過密碼(或這一欄是升級後才加的),不擋任何權杖。
+  passwordChangedAt    DateTime?  @map("password_changed_at") @db.Timestamptz
+  failedLoginCount     Int        @default(0) @map("failed_login_count")
+  lockedUntil          DateTime?  @map("locked_until") @db.Timestamptz
+  lastLoginAt          DateTime?  @map("last_login_at") @db.Timestamptz
+  managerId            String?    @map("manager_id") @db.Uuid              // 所屬訪查主管(團隊歸屬,邀請連結建立的帳號會自動填)
+  manager              User?      @relation("UserManager", fields: [managerId], references: [id], onDelete: SetNull)
+  teamMembers          User[]     @relation("UserManager")
+  createdAt            DateTime   @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt            DateTime   @updatedAt @map("updated_at") @db.Timestamptz
+
+  auditLogs            AuditLog[]
+  devCustomers         DevCustomer[]    @relation("DevCustomerOwner")
+  devInteractions      DevInteraction[] @relation("DevInteractionUser")
+  devDailyReports      DevDailyReport[] @relation("DevDailyReportUser")
+  devInvitesCreated    DevInvite[]      @relation("DevInviteCreator")
+  devVisitPlans        DevVisitPlan[]   @relation("DevVisitPlanOwner")
+
+  @@index([managerId])
+  @@index([departmentId])
+  @@map("users")
+}
+
+// audit_logs — 稽核記錄(只記關鍵事件,MVP 精簡)
+model AuditLog {
+  id            BigInt       @id @default(autoincrement())
+  userId        String?      @map("user_id") @db.Uuid
+  action        String       @db.VarChar(50)
+  ip            String?      @db.Inet
+  userAgent     String?      @map("user_agent") @db.VarChar(500)
+  metadata      Json?        @db.JsonB
+  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz
+
+  user          User?        @relation(fields: [userId], references: [id])
+
+  @@index([userId], map: "idx_audit_user")
+  @@index([action], map: "idx_audit_action")
+  @@index([createdAt], map: "idx_audit_created")
+  @@map("audit_logs")
+}
+
+// error_logs — 系統錯誤記錄(後台 /admin/errors 顯示)
+model ErrorLog {
+  id            BigInt    @id @default(autoincrement())
+  level         String    @default("error") @db.VarChar(20)  // error / warn
+  message       String    @db.VarChar(1000)
+  stack         String?   @db.Text
+  path          String?   @db.VarChar(500)
+  method        String?   @db.VarChar(10)
+  statusCode    Int?      @map("status_code")
+  userId        String?   @map("user_id") @db.Uuid
+  ip            String?   @db.Inet
+  userAgent     String?   @map("user_agent") @db.VarChar(500)
+  metadata      Json?     @db.JsonB
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  // 同一種錯誤的指紋(level + status + method + 遮蔽後路徑 + 訊息骨架 的雜湊)。
+  // 保留期內同指紋只留一列,重複的併進 seenCount,見 errors/errors.service.ts。
+  fingerprint   String?   @db.VarChar(64)
+  seenCount     Int       @default(1) @map("seen_count")
+  lastSeenAt    DateTime? @map("last_seen_at") @db.Timestamptz
+
+  @@index([createdAt], map: "idx_errors_created")
+  @@index([level], map: "idx_errors_level")
+  @@index([fingerprint, createdAt], map: "error_logs_fingerprint_idx")
+  @@map("error_logs")
+}
+
+// 設定表。一列一種設定,id 就是那一種設定的代碼,不是流水號也不是 single-row:
+//   id=1  應用程式設定(公司名稱、時區、地圖、照片檢查表 ... 見 settings.service.ts)
+//   id=3  單一登入政策(允許網域、自動建帳號、自動建帳號時的預設歸屬)
+//   id=4  Microsoft 365 組織資料快取(每次 SSO 登入覆寫)
+// id=2 從缺是歷史因素,沒有這一列。
+// 以前這裡寫的是「強制 single-row(只有 id=1)」,那句話不成立:
+// 照著下 DELETE FROM system_settings WHERE id <> 1 會把 SSO 設定與 M365 快取一起清掉。
+model SystemSettings {
+  id        Int      @id @default(1)  // 設定種類代碼,見上面的對照
+  data      Json     @db.JsonB
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  updatedBy String?  @map("updated_by") @db.Uuid
+
+  @@map("system_settings")
+}
+
+
+// =============================================================
+// 業務開發 CRM:客戶、互動與拜訪記錄
+// ref:3687 mc/陳彥輔/米球® 姓名表示權保留,見 LICENSE
+// =============================================================
+
+// 互動管道
+model DevCustomer {
+  id                     String    @id @default(uuid()) @db.Uuid
+  taxId                  String?   @map("tax_id") @db.VarChar(16)          // 外部查詢帶入的識別碼(優先);名稱由後台設定決定,見 lookup 模組
+  companyName            String    @map("company_name") @db.VarChar(200)   // 公司名稱(沒有識別碼時必填)
+  representative         String?   @db.VarChar(100)                        // 負責人
+  registeredAddress      String?   @map("registered_address") @db.VarChar(300) // 登記地址
+  actualAddress          String?   @map("actual_address") @db.VarChar(300)     // 實際營業地址
+  contactAddress         String?   @map("contact_address") @db.VarChar(300)    // 聯絡/寄送地址
+  website                String?   @db.VarChar(300)
+  social                 String?   @db.VarChar(200)
+  category               String?   @db.VarChar(40)                         // 商業分類
+  stage                  String    @default("lead") @db.VarChar(40)      // 對應 dev_stages.key(可由後台增減,不再是寫死的列舉)
+  source                 String?   @db.VarChar(60)                         // 來源
+  contactName            String?   @map("contact_name") @db.VarChar(100)   // 主要窗口
+  contactPhone           String?   @map("contact_phone") @db.VarChar(40)
+  note                   String?   @db.Text
+  ownerId                String    @map("owner_id") @db.Uuid               // 負責業務
+  owner                  User      @relation("DevCustomerOwner", fields: [ownerId], references: [id])
+  nextFollowUpAt         DateTime? @map("next_follow_up_at") @db.Timestamptz
+  lastContactAt          DateTime? @map("last_contact_at") @db.Timestamptz
+  externalCaseRef        String?   @map("external_case_ref") @db.Uuid       // 成交後對應的外部系統案件編號(選填,無外鍵)
+  lat                    Float?                                              // 地址地理編碼結果(拜訪地圖用)
+  lng                    Float?
+  geocodedAt             DateTime? @map("geocoded_at") @db.Timestamptz       // 最近一次地理編碼時間(null = 尚未編碼)
+  mergedIntoId           String?   @map("merged_into_id") @db.Uuid           // 查重合併後指向保留的那筆(被合併者 stage 改 dropped);DB 另有 CHECK 不得指向自己,建立於 src/prisma/startup-migrations.ts 的 CRM_INTEGRITY_STEPS
+  premisesType           String?   @map("premises_type") @db.VarChar(40)      // 對應 dev_premises_types.key(可由後台增減);結案前必填,決定必備照片清單
+  // 軟刪除:deletedAt 不為 null 就等於「這一筆不存在」,清單 / 看板 / 秒查 / 查重 / 統計 / 地圖全部排除,
+  // 但列還在,管理員可以在回收桶看到、可以還原。硬刪(真的 DELETE)只留給 admin 明確操作。
+  // 理由見 crm/deletion/crm-deletion-rules.ts 檔頭。
+  deletedAt              DateTime? @map("deleted_at") @db.Timestamptz
+  deletedById            String?   @map("deleted_by_id") @db.Uuid            // 誰刪的(不設外鍵:刪帳號不該讓這一格失效,稽核細節在 audit_logs)
+  deleteReason           String?   @map("delete_reason") @db.VarChar(300)    // 使用者填的原因(匯錯、測試資料、重複);回收桶顯示
+  // 匯入批次識別碼:同一次 CSV 匯入寫進來的每一筆都是同一個值,
+  // 「刪掉這一批匯錯的」就是靠它一次撈回來。手動建檔的客戶這一格是 null。
+  importBatchId          String?   @map("import_batch_id") @db.Uuid
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt              DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  interactions           DevInteraction[]
+  visitPhotos            DevVisitPhoto[]
+  visitPlans             DevVisitPlan[]
+
+  @@index([ownerId])
+  @@index([stage])
+  @@index([taxId])
+  @@index([deletedAt])
+  @@index([importBatchId])
+  // merged_into_id 沒有外鍵(合併保留筆被永久刪除時要清得掉指標),所以也不會有
+  // 自動建立的索引。查重合併的列鎖(lock.ts 的 lockCustomerAndMergedSources)、
+  // 永久刪除時的解除連結(unlinkMergedInto)都拿它當條件,而
+  // countableCustomerWhere()(清單 / 看板 / 統計 / 匯出的共同口徑)也帶著
+  // mergedIntoId: null —— 少了這一條全部只能 Seq Scan。
+  @@index([mergedIntoId])
+  // company_name 沒有索引時,匯入的整批查重(OR: [{ taxId in ... }, { companyName in ... }])
+  // 整句降級成 Seq Scan —— PostgreSQL 對 OR 只在**每一邊**都有索引時才走 BitmapOr,
+  // 有一邊沒有就整句掃全表。tax_id 那一邊有索引,company_name 這一邊沒有,
+  // 所以那一句實際上一直在掃五萬列,而且每匯一批就掃一次。
+  @@index([companyName])
+  @@map("dev_customers")
+}
+
+model DevInteraction {
+  id           String      @id @default(uuid()) @db.Uuid
+  customerId   String      @map("customer_id") @db.Uuid
+  customer     DevCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  userId       String      @map("user_id") @db.Uuid                        // 記錄者(業務)
+  user         User        @relation("DevInteractionUser", fields: [userId], references: [id])
+  channel      String      @default("note") @db.VarChar(40)         // 對應 dev_interaction_channels.key(可由後台增減,不再是寫死的列舉)
+  note         String?     @db.Text
+  occurredAt   DateTime    @default(now()) @map("occurred_at") @db.Timestamptz
+  nextAction   String?     @map("next_action") @db.VarChar(300)
+  gpsLat       Float?      @map("gps_lat")
+  gpsLng       Float?      @map("gps_lng")
+  gpsAccuracy  Float?      @map("gps_accuracy")                              // 定位精度(公尺)
+  distanceM    Int?        @map("distance_m")                                // 打卡點與客戶地址距離(公尺)
+  gpsSuspicious       Boolean @default(false) @map("gps_suspicious")         // 假定位偵測命中
+  gpsSuspiciousReason String? @map("gps_suspicious_reason") @db.VarChar(300)
+  createdAt    DateTime    @default(now()) @map("created_at") @db.Timestamptz
+
+  photos       DevVisitPhoto[]
+
+  @@index([customerId])
+  @@index([userId])
+  // 「這位使用者在這段時間裡做了什麼」是全站最熱的兩條路徑,而 user_id 單欄索引
+  // 只能把範圍縮到「這個人兩年份的全部互動」。打卡的假定位偵測每次都要問
+  // 「同一人最近兩小時有沒有帶座標的拜訪」(crm-checkin.service.ts 的 prev),
+  // 四十萬列時單欄索引實測要讀 6664 個 heap block、38.1ms;補上 occurred_at
+  // 之後是 8 個 block、0.11ms。
+  @@index([userId, occurredAt])
+  // occurred_at 單獨一條:統計 / 最近聯絡 / 可疑打卡 / 互動匯出都以它過濾或排序,
+  // 而排序沒有索引時是整表 Seq Scan 加外部排序 —— 匯出翻到第十頁(offset 50000)
+  // 實測會把 52MB 的暫存檔寫到磁碟,每翻一頁寫一次。
+  @@index([occurredAt])
+  @@map("dev_interactions")
+}
+
+// 拜訪拍照存證:照片在手機端壓浮水印(公司名+類型、業務、台北時間、經緯度)後上傳,存 DB(小圖,上限由後端檢查)
+// 一個客戶多張、一次打卡可多張;結案前依 premisesType 檢查必備類型是否齊全
+model DevVisitPhoto {
+  id            String         @id @default(uuid()) @db.Uuid
+  interactionId String         @map("interaction_id") @db.Uuid
+  interaction   DevInteraction @relation(fields: [interactionId], references: [id], onDelete: Cascade)
+  customerId    String         @map("customer_id") @db.Uuid
+  customer      DevCustomer    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  kind          String         @default("other") @db.VarChar(40)   // 對應 visit_photo_kinds.key(可由後台增減)
+  mime          String         @db.VarChar(40)
+  bytes         Bytes
+  sizeBytes     Int            @map("size_bytes")
+  sha256        String         @db.VarChar(64)
+  takenAt       DateTime       @map("taken_at") @db.Timestamptz
+  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([interactionId])
+  @@index([customerId, kind])
+  // 每人每日上傳配額會沿著互動算「這位使用者今天寫進去多少位元組」,過濾條件是 created_at
+  @@index([createdAt])
+  @@map("dev_visit_photos")
+}
+
+// 業務拜訪日報:每人每天一份,送出後主管可讀、可批註
+model DevDailyReport {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  user        User     @relation("DevDailyReportUser", fields: [userId], references: [id])
+  reportDate  DateTime @map("report_date") @db.Date
+  content     String   @db.Text
+  stats       Json?
+  submittedAt DateTime @default(now()) @map("submitted_at") @db.Timestamptz
+  readAt      DateTime? @map("read_at") @db.Timestamptz
+  readById    String?  @map("read_by_id") @db.Uuid
+  managerNote String?  @map("manager_note") @db.Text
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@unique([userId, reportDate])
+  @@index([reportDate])
+  @@map("dev_daily_reports")
+}
+
+// 訪查主管邀請新業務的一次性連結:只存代碼雜湊,30 分鐘有效,用過即作廢
+model DevInvite {
+  id           String    @id @default(uuid()) @db.Uuid
+  tokenHash    String    @unique @map("token_hash") @db.VarChar(64)
+  createdById  String    @map("created_by_id") @db.Uuid
+  createdBy    User      @relation("DevInviteCreator", fields: [createdById], references: [id])
+  role         UserRole  @default(sales)
+  expiresAt    DateTime  @map("expires_at") @db.Timestamptz
+  usedAt       DateTime? @map("used_at") @db.Timestamptz
+  usedByUserId String?   @map("used_by_user_id") @db.Uuid
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([createdById, createdAt])
+  @@map("dev_invites")
+}
+
+enum VisitPlanStatus {
+  planned
+  done
+  missed
+  cancelled
+}
+
+// 拜訪排程:業務替某客戶排某一天要拜訪,打卡後自動標 done,過期未打卡標 missed
+model DevVisitPlan {
+  id            String          @id @default(uuid()) @db.Uuid
+  customerId    String          @map("customer_id") @db.Uuid
+  customer      DevCustomer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  ownerId       String          @map("owner_id") @db.Uuid
+  owner         User            @relation("DevVisitPlanOwner", fields: [ownerId], references: [id])
+  plannedDate   DateTime        @map("planned_date") @db.Date
+  status        VisitPlanStatus @default(planned)
+  interactionId String?         @map("interaction_id") @db.Uuid   // 打卡後對應的互動紀錄
+  note          String?         @db.VarChar(200)
+  createdAt     DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime        @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@unique([customerId, plannedDate])
+  @@index([ownerId, plannedDate])
+  // 過期批次(status=planned 且 planned_date < 今天)與週視圖的日期區間查詢用;
+  // 授權改成 join 客戶之後,ownerId 不再是這兩支查詢的前置條件
+  @@index([plannedDate, status])
+  @@map("dev_visit_plans")
+}
+
+// =============================================================
+// 系統可設定的主檔:開發階段、存證照片種類、組織部門
+// 這三張表都由 src/prisma/startup-migrations.ts 在啟動時建立並 seed 預設值,
+// 之後由後台維護,程式碼裡不再寫死清單。
+// ref:3687 mc/陳彥輔/米球® 姓名表示權保留,見 LICENSE
+// =============================================================
+
+// 開發階段(看板欄位)。原本是 prisma enum,改成資料表才能由後台增減。
+model DevStage {
+  id         String   @id @default(uuid()) @db.Uuid
+  key        String   @unique @db.VarChar(40)   // DevCustomer.stage 存的值,建立後不可改
+  label      String   @db.VarChar(40)           // 看板上顯示的名稱
+  color      String?  @db.VarChar(20)           // 看板色票(hex 或色名),null = 用前端預設
+  sortOrder  Int      @default(0) @map("sort_order")
+  isActive   Boolean  @default(true) @map("is_active")
+  isTerminal Boolean  @default(false) @map("is_terminal") // 終止階段(成交 / 放棄),不再進行中
+  showOnBoard Boolean @default(true) @map("show_on_board") // 出現在看板欄位
+  showInForm  Boolean @default(true) @map("show_in_form")  // 出現在新增 / 編輯表單的下拉
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([sortOrder])
+  @@map("dev_stages")
+}
+
+// 存證照片種類。原本是 prisma enum,改成資料表才能由後台增減。
+model VisitPhotoKind {
+  id         String   @id @default(uuid()) @db.Uuid
+  key        String   @unique @db.VarChar(40)   // DevVisitPhoto.kind 存的值,建立後不可改
+  label      String   @db.VarChar(40)
+  sortOrder  Int      @default(0) @map("sort_order")
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([sortOrder])
+  @@map("visit_photo_kinds")
+}
+
+// 互動管道。原本是 prisma enum,改成資料表才能由後台增減。
+// visit 與 note 是保留代碼(打卡與系統紀錄寫的就是它們),後台可以改名但不能刪。
+model DevInteractionChannel {
+  id         String   @id @default(uuid()) @db.Uuid
+  key        String   @unique @db.VarChar(40)   // DevInteraction.channel 存的值,建立後不可改
+  label      String   @db.VarChar(40)
+  sortOrder  Int      @default(0) @map("sort_order")
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([sortOrder])
+  @@map("dev_interaction_channels")
+}
+
+// 場所類型。決定結案前必備的存證照片清單(照片檢查表按場所類型分組)。
+// 原本是 prisma enum,改成資料表才能由後台增減。
+model DevPremisesType {
+  id         String   @id @default(uuid()) @db.Uuid
+  key        String   @unique @db.VarChar(40)   // DevCustomer.premises_type 存的值,建立後不可改
+  label      String   @db.VarChar(40)
+  sortOrder  Int      @default(0) @map("sort_order")
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([sortOrder])
+  @@map("dev_premises_types")
+}
+
+// 商業分類(客戶卡「分類」那一格的選項)。可由後台增減,與場所類型同構。
+// 原本這份清單寫死在前端,後台改不到 —— 見 @mitchcrm/shared 的 DEFAULT_CATEGORIES。
+model DevCategory {
+  id         String   @id @default(uuid()) @db.Uuid
+  key        String   @unique @db.VarChar(40)   // DevCustomer.category 存的值,建立後不可改
+  label      String   @db.VarChar(40)
+  sortOrder  Int      @default(0) @map("sort_order")
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([sortOrder])
+  @@map("dev_categories")
+}
+
+// 被管理員刻意刪掉的出廠代碼(墓碑)。
+// 五張主檔的 seed 是「不存在才插入」而且每次開機都跑,少了這張表,
+// 後台刪掉的出廠階段 / 照片種類 / 互動管道 / 場所類型 / 商業分類
+// 會在下一次重啟時安靜地長回來(存檔成功、畫面正確,重啟之後看板自己多一欄)。
+// catalog 的值見 @mitchcrm/backend 的 SeedCatalog:stage / photoKind / channel / premises / category。
+// 管理員把同一個 key 加回來時這一列會被刪掉,行為回到出廠狀態。
+model SeedTombstone {
+  catalog   String   @db.VarChar(40)
+  key       String   @db.VarChar(40)
+  deletedAt DateTime @default(now()) @map("deleted_at") @db.Timestamptz
+
+  @@id([catalog, key])
+  @@map("dev_seed_tombstones")
+}
+
+// 組織部門(可多層)。權限的「部門子樹」以 parentId 往下展開。
+model Department {
+  id        String       @id @default(uuid()) @db.Uuid
+  name      String       @db.VarChar(100)
+  parentId  String?      @map("parent_id") @db.Uuid
+  parent    Department?  @relation("DepartmentParent", fields: [parentId], references: [id], onDelete: SetNull)
+  children  Department[] @relation("DepartmentParent")
+  sortOrder Int          @default(0) @map("sort_order")
+  createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime     @updatedAt @map("updated_at") @db.Timestamptz
+
+  members   User[]       @relation("UserDepartment")
+
+  @@index([parentId])
+  @@index([sortOrder])
+  @@map("departments")
+}

@@ -1,0 +1,2170 @@
+/* ============================================================
+ * Mitch CRM Frontend — 全域樣式
+ *
+ * 設計原則(WCAG 2.1 AAA)
+ * - 正常文字對比 ≥ 7:1
+ * - 大文字對比 ≥ 4.5:1
+ * - Focus ring: 2px outline,背景對比 ≥ 3:1
+ * - 點擊區 ≥ 44×44
+ * - line-height ≥ 1.5,段落間距 ≥ 1.5× line-height
+ * - 最大行長 ≤ 80 ch
+ * - prefers-reduced-motion: reduce → 全域關閉非必要動畫
+ *
+ * Palette 對比數值請以 accessibility-reports/contrast-checker.md 為準。
+ *
+ * ref:3687 mc/陳彥輔/米球® 姓名表示權保留,見 LICENSE
+ * ============================================================ */
+
+@import 'tailwindcss';
+
+/* ---- Design Tokens(Tailwind v4 @theme) ---- */
+@theme {
+  /* --- Color --- */
+  /* ── 2026-09 版面層次重整 ──────────────────────────────────────
+   * 使用者看了後台截圖的回饋:整站全白灰、卡片跟頁面分不開、側欄跟內容沒有區隔。
+   * 改法:頁面底色退成冷灰,內容卡片才是純白,卡片邊框壓深到非文字 3:1,
+   * 側欄改深藍底,各功能區再各自有一組 accent / tint(見下方 --area-*)。
+   * 下面每一行的比值都是用 WCAG 相對亮度公式算出來的,而且是用建置產物實算的:
+   *   node scripts/a11y/palette-audit.mjs claims
+   * (註解裡的數字對不上實算時
+   *  palette-audit 會以非 0 結束,所以這些數字不是手抄的。)
+   *
+   * 所有對 --color-background 上的文字對都須滿足 ≥ 7:1(AAA 正常文字) */
+  --color-background: var(
+    --bg-page
+  ); /* → --bg-page（舊值 #eef2f6，見下方對照） */ /* 頁面底:冷灰。foreground 對它 16.09:1 ✓ */
+  --color-foreground: var(
+    --text
+  ); /* → --text（舊值 #0a0a0a，見下方對照） */ /* 16.09:1 vs background / 17.44:1 vs surface ✓ AAA */
+  --color-surface: var(
+    --bg-card
+  ); /* → --bg-card（舊值 #ffffff，見下方對照） */ /* 內容卡片:純白,與頁面底一眼分得開 */
+  --color-surface-foreground: var(
+    --text
+  ); /* → --text（舊值 #0a0a0a，見下方對照） */ /* 17.44:1 vs surface ✓ */
+
+  --color-muted: var(
+    --bg-subtle
+  ); /* → --bg-subtle（舊值 #e2e8f0，見下方對照） */ /* 中性淡底(chip / 表格 hover 列);foreground 對它 14.80:1 */
+  --color-muted-foreground: var(
+    --text-muted
+  ); /* → --text-muted（舊值 #3b4453，見下方對照） */ /* 9.42:1 vs surface / 8.69:1 vs background / 8.00:1 vs muted ✓ AAA */
+
+  --color-border: var(
+    --border
+  ); /* → --border（舊值 #7f8a9a，見下方對照） */ /* 卡片邊框:對 surface 白底 3.68:1 / 對 background #F4F6F7 3.39:1(1.4.11 非文字 ≥ 3:1 兩邊都過;
+                                             卡片外緣其實坐在灰底上,所以邊框色要以較難的那一邊為準)。
+                                             對 muted #E9EDEF 3.12(表格 hover 列的列線,列線不是 1.4.11 要求的元件邊界,一併寫在這裡) */
+  --color-border-strong: var(
+    --border-strong
+  ); /* → --border-strong（舊值 #3f4a5c，見下方對照） */ /* 輸入框、次要按鈕外框:8.99:1 vs surface / 8.29:1 vs background */
+  --color-label: var(
+    --text-label
+  ); /* → --text-label（舊值 #1e293b，見下方對照） */ /* 表單 label 字色:12.99:1 vs surface / 11.98:1 vs background */
+
+  /* ── 側邊選單(admin/layout.tsx 的 .admin-sidebar)──────────────
+   * 方案 A 淺色的實算值(深側欄底 --sidebar-bg #06333C):
+   *   側欄文字 --sidebar-fg #EAF2F3 on #06333C = 11.96:1 ✓
+   *   hover    同一組字 on --sidebar-hover-bg #093D48 = 10.43:1 ✓
+   *   選中項   --sidebar-sel-fg #FFFFFF on --sidebar-sel-bg #0D4653 = 10.41:1 ✓
+   *   頂端區塊 同一組字 on --color-sidebar-deep #052A31 = 13.40:1 ✓
+   *
+   * ★ --sidebar-sel-bar(= --accent #E2661A)對深側欄底只有 3.98:1。
+   *   它是選中項左側 3px 色條與 focus outline 的顏色,兩者都是非文字元件
+   *   (1.4.11 門檻 3:1,過)。**絕對不可以拿來當文字色**:當文字用就是
+   *   3.98:1 對上 7:1,直接違反 1.4.6 AAA。P13 探針有一條規則專門擋這件事。 */
+  --color-sidebar: var(--sidebar-bg); /* → --sidebar-bg（舊值 #0f2a44，見下方對照） */
+  --color-sidebar-deep: color-mix(
+    in srgb,
+    var(--sidebar-bg) 82%,
+    #000000
+  ); /* 舊值 #091d30；新系統無對應變數，由 --sidebar-bg 壓深一階推導 */
+  --color-sidebar-hover: var(
+    --sidebar-hover-bg
+  ); /* → --sidebar-hover-bg（舊值 #1e3f61，見下方對照） */
+  --color-sidebar-foreground: var(--sidebar-fg); /* → --sidebar-fg（舊值 #ffffff，見下方對照） */
+  /* 舊的 --color-sidebar-muted 已移除:新的側欄只有一個文字色,它的值跟
+     --color-sidebar-foreground 一模一樣,留著只會讓人以為側欄有兩級文字。
+     原本唯一的使用處(site-header 的使用者名稱)已改用 text-sidebar-foreground。 */
+  --color-sidebar-active: var(
+    --sidebar-sel-bar
+  ); /* → --sidebar-sel-bar（舊值 #ffd166）。非文字專用:3.98:1 對側欄底,只能當色條 / outline，不能當文字 */
+  --color-sidebar-active-foreground: var(
+    --sidebar-sel-fg
+  ); /* → --sidebar-sel-fg（舊值 #0f2a44，見下方對照） */
+
+  /* ── 四個語意色:Okabe-Ito 色盲友善調色盤壓深 ────────────────────
+   * 來源:Okabe & Ito (2008)《Color Universal Design》建議的 8 色安全調色盤。
+   * 原始 8 色是為「圖表填色」設計的,亮度偏高,對白底達不到 AAA 正常文字的 7:1,
+   * 所以每一個都只把 HSL 的 L 壓低、H 與 S 原封不動,壓到剛好越過 7:1。
+   * 保留 H 與 S 就是保留色盲可辨識性 —— Okabe-Ito 挑這 8 色靠的是色相分離。實測:
+   *   blue           #0072b2 H201.6 S100.0 L34.9 → #00588a H201.7 S100.0 L27.1
+   *   bluish green   #009e73 H163.7 S100.0 L31.0 → #005c43 H163.7 S100.0 L18.0
+   *   orange         #e69f00 H 41.5 S100.0 L45.1 → #704e00 H 41.8 S100.0 L22.0
+   *   reddish purple #cc79a7 H326.7 S 44.9 L63.7 → #893463 H326.8 S 45.0 L37.1
+   *
+   * 為什麼要換掉舊的四色(#1e3a8a / #134a29 / #6b3410 / #7f1d1d):
+   * 舊的四色是各自為了「對白底夠深」挑出來的,沒有人驗過它們**彼此**分不分得開。
+   * 用 Machado, Oliveira & Fernandes (2009) IEEE TVCG 15(6) 的 severity=1.0 矩陣
+   * 作用在線性 RGB 做模擬、再用 CIEDE2000 量兩兩色差,實測:
+   *   綠色盲 deuteranopia:warning #6b3410 ↔ destructive #7f1d1d 只有 ΔE00 1.76
+   *                        —— 1.76 在感知上等於同一個顏色
+   *   紅色盲 protanopia  :success #134a29 ↔ destructive #7f1d1d 只有 4.93
+   * 換成下面這一組之後,三種色覺缺陷中最壞的一組是
+   *   藍色盲 tritanopia:primary ↔ success = ΔE00 6.74(其餘全部 ≥ 8.65)。
+   * destructive 刻意**不用** Okabe-Ito 的 vermillion 壓深(#8a3d00):
+   *   它與 warning #704e00 在 deuteranopia 下只有 ΔE00 1.20,比現況還糟。
+   *   改用 reddish purple 壓深,deuteranopia 下對 warning 拉到 27.92。
+   *
+   * ★ 這一組的代價寫在這裡,不要事後才發現:對白底只有 7.56~8.04:1,
+   *   餘裕比舊的四色(9.89~10.36:1)少很多。因此「語意色當淡底、同色深字」
+   *   這個配方**整組失效** —— 12% 淡底的 badge 只剩 5.85~6.20:1。
+   *   規則因此改成:語意色只有兩種用法,
+   *     (a) 中性底(白 / surface / muted 表格列)上的文字,或
+   *     (b) 白字的實心底。
+   *   絕對不要再讓語意色當自己文字的底(見下面 .badge-* / .flash-* 的註解)。
+   *
+   * ★ 以上整段(Okabe-Ito 壓深、12% 淡底失效、7.56~8.04:1 的餘裕)講的是 2026-08
+   *   那一版色票的決策過程,留著是因為「為什麼語意色不能當自己文字的底」這條規則
+   *   是從那裡來的,規則本身現在仍然成立。但**數字全部是舊色票的**,不要照抄。
+   *
+   * 現行(設計系統方案 A 淺色)的實算值:
+   *     primary     #084349  vs background 10.15 / vs surface 11.00 / vs muted 9.34;白字 on 它 11.00
+   *     destructive #7E1223  vs background  9.70 / vs surface 10.51 / vs muted 8.92;白字 10.51
+   *     success     #0A3E26  vs background 11.20 / vs surface 12.14 / vs muted 10.30;白字 12.14
+   *     warning     #5E3904  vs background  9.39 / vs surface 10.18 / vs muted 8.64;白字 10.18
+   *   要重算:node scripts/a11y/palette-audit.mjs claims(對不上會以非 0 結束)。
+   */
+  --color-primary: var(
+    --primary
+  ); /* → --primary（舊值 #004f7c，見下方對照） */ /* 方案 A 主色 #084349;白字 on 它 11.00:1 ✓ */
+  --color-primary-foreground: var(--primary-fg); /* → --primary-fg（舊值 #ffffff，見下方對照） */
+  --color-primary-hover: var(
+    --primary-hover
+  ); /* → --primary-hover（舊值 #003f63，見下方對照） */ /* primary 壓深一階 #05353A;白字 13.32:1 ✓。
+                                             不用 .btn-primary:hover{filter:brightness()} —— filter 會連白字一起變亮,反而破 AAA。 */
+
+  --color-destructive: var(
+    --danger
+  ); /* → --danger（舊值 #7c2f5a，見下方對照） */ /* 方案 A 危險色 #7E1223;白字 10.51:1 ✓ */
+  --color-destructive-foreground: var(--danger-fg); /* → --danger-fg（舊值 #ffffff，見下方對照） */
+  --color-destructive-hover: var(
+    --danger-hover
+  ); /* → --danger-hover（舊值 #632648，見下方對照） */ /* 壓深一階 #630E1B;白字 13.05:1 ✓ */
+
+  --color-success: var(
+    --success
+  ); /* → --success（舊值 #00563f，見下方對照） */ /* 成功色 #0A3E26;白字 12.14:1 ✓ */
+  --color-success-foreground: var(--st-green-bg); /* → --st-green-bg（舊值 #ffffff，見下方對照） */
+
+  --color-warning: var(
+    --warning
+  ); /* → --warning（舊值 #654600，見下方對照） */ /* 警告色 #5E3904;白字 10.18:1 ✓ */
+  --color-warning-foreground: var(--st-amber-bg); /* → --st-amber-bg（舊值 #ffffff，見下方對照） */
+
+  --color-ring: var(
+    --focus
+  ); /* → --focus（舊值 #004f7c，見下方對照） */ /* focus indicator(同 primary);對 surface 11.00 / 對 background 10.15,遠高於 1.4.11 的 3:1 */
+
+  /* ── 功能區識別色(admin/layout.tsx 依 pathname 放 data-area 在 admin 內容外框)────
+   * 每一區兩個值:accent(深色,做色條、標題字、白字實心底)與 tint(淡底,上面放 accent 字)。
+   * 規則:白字 on accent ≥ 7:1;accent 字 on tint ≥ 7:1;accent 字 on surface / background ≥ 7:1。
+   * 預設值(:root,沒有 data-area 的頁:首頁、登入頁)= crm 藍綠。
+   * 實算(方案 A 淺色;on surface 與白字是同一個數,因為 surface 就是純白):
+   *   crm       深綠  accent #04463A  on tint #C8E8DC 8.25 / on surface 10.81 / on background  9.97
+   *   apps      深藍  accent #14307E  on tint #D2DEFA 8.88 / on surface 11.97 / on background 11.05
+   *   review    紫    accent #5C1466  on tint #EFD3F2 8.74 / on surface 12.02 / on background 11.09
+   *   dashboard 靛藍  accent #05415E  on tint #CBE3F2 8.22 / on surface 10.91 / on background 10.07
+   *   system    灰藍  accent #333949  on tint #DFE2EA 8.89 / on surface 11.52 / on background 10.63
+   * 每一組另外配一個 tint-fg(淡底上的內文字),對自己的 tint 最低 10.47:1(crm)。 */
+  --color-area-crm: var(--zone-dev); /* → --zone-dev（舊值 #0a544d，見下方對照） */
+  --color-area-crm-tint: var(--zone-dev-tint); /* → --zone-dev-tint（舊值 #e6f5f2，見下方對照） */
+  --color-area-apps: var(--zone-app); /* → --zone-app（舊值 #004f7c，見下方對照） */
+  --color-area-apps-tint: var(--zone-app-tint); /* → --zone-app-tint（舊值 #e8f1f8，見下方對照） */
+  --color-area-review: var(--zone-rev); /* → --zone-rev（舊值 #5b2a86，見下方對照） */
+  --color-area-review-tint: var(
+    --zone-rev-tint
+  ); /* → --zone-rev-tint（舊值 #f0eaf8，見下方對照） */
+  --color-area-dashboard: var(--zone-dash); /* → --zone-dash（舊值 #303a8a，見下方對照） */
+  --color-area-dashboard-tint: var(
+    --zone-dash-tint
+  ); /* → --zone-dash-tint（舊值 #eaecf9，見下方對照） */
+  --color-area-system: var(--zone-sys); /* → --zone-sys（舊值 #3d4f63，見下方對照） */
+  --color-area-system-tint: var(
+    --zone-sys-tint
+  ); /* → --zone-sys-tint（舊值 #edf0f4，見下方對照） */
+
+  /* --- 字級行高(1.4.8 AAA Visual Presentation:行距 ≥ 1.5 × 字級)---
+   *
+   * Tailwind v4 的字級 utility 會連行高一起帶,而 .text-sm / .text-xs 的預設值
+   * 都低於 1.5:
+   *   --text-sm--line-height 預設 calc(1.25 / .875) = 1.4286
+   *   --text-xs--line-height 預設 calc(1    / .75 ) = 1.3333
+   * 這兩個是本站最常用的小字級(頁尾、卡片說明、admin 側欄、聯絡頁),
+   * 也就是說只要有人寫 className="text-sm",那一段正文就默默掉出 AAA,
+   * 而原始碼裡完全看不出來(className 裡沒有任何跟行高有關的字)。
+   * 實測(建置產物 CSS + 產物 HTML):119 個正文文字節點吃 1.4286、46 個吃 1.3333。
+   *
+   * 為什麼改 @theme 的 token 而不是各自加 leading-*:
+   *   改 token 是一次改到底、之後新寫的 .text-sm 自動正確;
+   *   逐處加 leading-6 只會治到今天寫過的地方,而且下一個人不會知道有這條規矩。
+   * 為什麼是 1.5 不是更大:1.5 就是 1.4.8 的門檻,再大只是改變版面密度,
+   *   沒有合規上的好處。
+   *
+   * ★ 其餘字級不動:--text-base 是 calc(1.5/1)=1.5、--text-lg 是 calc(1.75/1.125)=1.5556,
+   *   本來就過門檻。--text-2xl 是 calc(2/1.5)=1.3333,但它只用在 24px 粗體的統計數字
+   *   (一個數字不是 blocks of text),已登記在 p14-line-height-allowlist.json。
+   *
+   * ★ 哪些元件會變、哪些不會(這一段是量出來的,不是猜的):
+   *   不會變 —— .badge(1.4)/.btn(1.25,.btn-sm/.btn-xs 繼承它)/.input(1.4)/
+   *     .page-h1(1.3)/.page-h2(1.4)/.page-subtle(1.5)/.env-badge(1.4)
+   *     都在 components 層(或 unlayered)自己宣告了 line-height,而全站沒有任何一個
+   *     元素同時掛元件 class 與 .text-sm / .text-xs(含 template literal 的廣義 grep,零處),
+   *     所以按鈕與徽章的高度一格都沒有變。
+   *   會變 —— .flash / .meta-row / .table-compact 沒有宣告 line-height,是繼承來的。
+   *     它們若落在掛了 .text-sm 的祖先底下,行盒會從 14×1.4286=20.00px 變成
+   *     14×1.5=21.00px,也就是 +1.00px;.text-xs 祖先則是 12×1.3333=16.00 → 18.00px。
+   *     目前 4 處 .table-compact 的外層是 .overflow-x-auto / .card,沒有字級 utility,
+   *     所以繼承的是 body 的 1.6(行盒 22.40px),不動。
+   *     另外 5 張表是 <table class="min-w-full text-sm">,它們的列高會從 44.00px
+   *     變成 45.00px(行盒 21.00 + td 的 py-3 上下各 12px)。徽章在同一列裡是
+   *     15.40+4=19.40px,比 21.00 矮,所以列高不是徽章決定的,不會被撐爛。 */
+  --text-sm--line-height: 1.5;
+  --text-xs--line-height: 1.5;
+
+  /* --- Radius --- */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.75rem; /* 12px:卡片圓角(rounded-lg 全站跟著變) */
+
+  /* --- Font --- */
+  --font-sans:
+    var(--font-noto-sans-tc), 'Noto Sans TC', -apple-system, 'Segoe UI', 'Microsoft JhengHei',
+    'PingFang TC', sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Courier New', monospace;
+}
+
+/* ============================================================
+ * 設計系統變數(全站色票與尺寸的唯一來源)
+ *
+ * 這一段是本專案的設計 token 本體:色票、尺寸、陰影全部定義在這裡,
+ * 其他地方一律引用,不准再寫第二份。每一組色票的挑法、對比實算值,
+ * 以及改動時要跑哪幾支檢查,寫在 設計基準。
+ *
+ * ★ 底下註解裡寫「規格:」或「元件尺寸規格:」的那些數值(高度、內距、圓角、
+ *   字級字重),出處是 設計基準 的元件尺寸表。要改請連那份一起改,
+ *   否則文件與程式碼會走散。
+ *
+ * 方案 A（藍綠）／方案 B（赤陶） × 淺色／深色 × 深側欄／淺側欄
+ * 使用者選擇寫在 <html>:data-scheme="A|B" data-theme="light|dark" data-sidebar="dark|light"
+ * 未指定 data-theme 時跟隨系統 prefers-color-scheme。
+ * 文字對底色一律 ≥7:1（WCAG AAA），非文字元件 ≥3:1。
+ *
+ * ★ 為什麼寫在所有 @layer 之外（unlayered）
+ *   Tailwind v4 的 @theme 會把上面那些 --color-* 別名放進 theme 層的 :root。
+ *   自訂屬性的值是在「宣告它的那個元素」上算出來的,而 data-scheme / data-theme /
+ *   data-sidebar 三個屬性都掛在 <html>(= :root)本身,所以下面這些 :root 與
+ *   [data-scheme=...] 規則跟 @theme 的 :root 是同一個元素,層疊由這裡決定。
+ *   unlayered 贏過所有 @layer,切換屬性一定生效。
+ *
+ * ★ 舊 token 一個都沒有刪:@theme 裡的 --color-* 全部改成指向這裡的新變數
+ *   （對照表見本檔最下方「舊 token → 新變數對照」),既有頁面的 text-foreground /
+ *   bg-surface / border-border 等 utility 不用改就會吃到新色。
+ * ============================================================ */
+
+/* ── 共用尺寸（不隨方案或模式改變） ── */
+:root {
+  /* --font 指向 --font-sans,才不會把 next/font 的 --font-noto-sans-tc 甩掉
+     （字族原本寫成 "Noto Sans TC", system-ui, sans-serif;這裡等價,但保留 next/font 的自架字檔） */
+  --font: var(--font-sans);
+  --r-sm: 6px;
+  --r-md: 8px;
+  --r-lg: 10px;
+  --tap-min: 44px;
+  --pad-card: 20px;
+  --gap-card: 16px;
+  --gap-field: 20px;
+  --gap-section: 40px;
+  --btn-h: 44px;
+  --btn-px: 20px;
+  --sh: 0 1px 2px rgba(16, 26, 29, 0.06), 0 1px 3px rgba(16, 26, 29, 0.1);
+  --sh-hover: 0 2px 4px rgba(16, 26, 29, 0.08), 0 4px 10px rgba(16, 26, 29, 0.12);
+}
+[data-theme='dark'] {
+  --sh: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.24);
+  --sh-hover: 0 2px 6px rgba(0, 0, 0, 0.36), 0 6px 14px rgba(0, 0, 0, 0.3);
+}
+
+/* ── 方案 A · 藍綠（預設） ── */
+:root,
+[data-scheme='A'] {
+  --bg-page: #f4f6f7;
+  --bg-card: #ffffff;
+  --bg-subtle: #e9edef;
+  --border: #7c878d;
+  --border-strong: #3e4b53;
+  --text: #101b24;
+  --text-muted: #3b4850;
+  --text-label: #26333a;
+  --primary: #084349;
+  --primary-fg: #ffffff;
+  --primary-hover: #05353a;
+  --primary-active: #032428;
+  --primary-tint: #cdebec;
+  --primary-tint-fg: #073f47;
+  --secondary-fg: #073f47;
+  --secondary-border: #084349;
+  --secondary-hover-bg: #e8f2f3;
+  /* ★ --accent 是全站唯一的亮色,而且只准當「底」或「非文字圖形」用。
+     對白底 3.42:1、對頁面底 #F4F6F7 3.15:1 —— 兩個都遠低於 1.4.6 AAA 的 7:1,
+     連 1.4.3 AA 的 4.5:1 都不到。當文字色用就是直接違規。
+     可以當:實心按鈕 / 徽章的底(配 --accent-pale-fg 那種深字)、圖表填色(1.4.11 的 3:1)、
+             選中項左側色條、focus outline。
+     不可以當:任何 color: 宣告的值。P13 探針有一條規則專門擋這件事。 */
+  --accent: #e2661a;
+  --accent-strong: #8e3707;
+  --accent-pale: #ffd9c2;
+  --accent-pale-fg: #6b2a05;
+  --danger: #7e1223;
+  --danger-fg: #ffffff;
+  --danger-hover: #630e1b;
+  --success: #0a3e26;
+  --warning: #5e3904;
+  --link: #073f47;
+  --link-hover: #032428;
+  --focus: #084349;
+  --sidebar-bg: #06333c;
+  --sidebar-fg: #eaf2f3;
+  --sidebar-sel-bg: #0d4653;
+  --sidebar-sel-fg: #ffffff;
+  --sidebar-sel-bar: #e2661a;
+  --sidebar-hover-bg: #093d48;
+  --zone-dev: #04463a;
+  --zone-dev-tint: #c8e8dc;
+  --zone-dev-tint-fg: #063429;
+  --zone-app: #14307e;
+  --zone-app-tint: #d2defa;
+  --zone-app-tint-fg: #152859;
+  --zone-rev: #5c1466;
+  --zone-rev-tint: #efd3f2;
+  --zone-rev-tint-fg: #451346;
+  --zone-dash: #05415e;
+  --zone-dash-tint: #cbe3f2;
+  --zone-dash-tint-fg: #082e41;
+  --zone-sys: #333949;
+  --zone-sys-tint: #dfe2ea;
+  --zone-sys-tint-fg: #252a38;
+}
+[data-scheme='A'][data-theme='dark'] {
+  --bg-page: #101a1d;
+  --bg-card: #17262a;
+  --bg-subtle: #1f3238;
+  --border: #6b8288;
+  --border-strong: #9cb2b8;
+  --text: #eaf2f3;
+  --text-muted: #b4c4c9;
+  --text-label: #c6d6da;
+  --primary: #6fdfd4;
+  --primary-fg: #062b2e;
+  --primary-hover: #8be9e0;
+  --primary-active: #55c9be;
+  --primary-tint: #123a3d;
+  --primary-tint-fg: #8be9e0;
+  --secondary-fg: #8be9e0;
+  --secondary-border: #6fdfd4;
+  --secondary-hover-bg: #123a3d;
+  --accent: #ff9552;
+  --accent-strong: #ffb585;
+  --accent-pale: #3a1d0c;
+  --accent-pale-fg: #ffc59e;
+  --danger: #ff9aa6;
+  --danger-fg: #3a0710;
+  --danger-hover: #ffb6bf;
+  --success: #7be0a4;
+  --warning: #f2c46b;
+  --link: #7fe3da;
+  --link-hover: #a6efe8;
+  --focus: #6fdfd4;
+  --sidebar-bg: #05282f;
+  --sidebar-fg: #d6e4e6;
+  --sidebar-sel-bg: #0b3a44;
+  --sidebar-sel-fg: #ffffff;
+  --sidebar-sel-bar: #ff9552;
+  --sidebar-hover-bg: #08323b;
+  --zone-dev: #5fd9bc;
+  --zone-dev-tint: #10352d;
+  --zone-dev-tint-fg: #86e8ce;
+  --zone-app: #93b4ff;
+  --zone-app-tint: #1a2547;
+  --zone-app-tint-fg: #afc7ff;
+  --zone-rev: #e098e4;
+  --zone-rev-tint: #331a34;
+  --zone-rev-tint-fg: #ebb2ee;
+  --zone-dash: #79c6ec;
+  --zone-dash-tint: #12303d;
+  --zone-dash-tint-fg: #9ad6f2;
+  --zone-sys: #b4bfd4;
+  --zone-sys-tint: #262b36;
+  --zone-sys-tint-fg: #c8d1e0;
+}
+
+/* ── 方案 B · 赤陶 ── */
+[data-scheme='B'] {
+  --bg-page: #f7f5f2;
+  --bg-card: #ffffff;
+  --bg-subtle: #ede8e2;
+  --border: #8a8177;
+  --border-strong: #4d4139;
+  --text: #1f1811;
+  --text-muted: #4d4139;
+  --text-label: #352c25;
+  --primary: #6e2a0e;
+  --primary-fg: #ffffff;
+  --primary-hover: #58210a;
+  --primary-active: #451906;
+  --primary-tint: #f7daca;
+  --primary-tint-fg: #5c1d07;
+  --secondary-fg: #5c1d07;
+  --secondary-border: #6e2a0e;
+  --secondary-hover-bg: #faefe8;
+  --accent: #0e8c86;
+  --accent-strong: #085250;
+  --accent-pale: #c9edea;
+  --accent-pale-fg: #06403d;
+  --danger: #700b2e;
+  --danger-fg: #ffffff;
+  --danger-hover: #58091f;
+  --success: #0f4222;
+  --warning: #573a00;
+  --link: #5c1d07;
+  --link-hover: #451906;
+  --focus: #6e2a0e;
+  --sidebar-bg: #33201a;
+  --sidebar-fg: #f3ece5;
+  --sidebar-sel-bg: #45291f;
+  --sidebar-sel-fg: #ffffff;
+  --sidebar-sel-bar: #0e8c86;
+  --sidebar-hover-bg: #3c241d;
+  --zone-dev: #0a4a31;
+  --zone-dev-tint: #cde9dc;
+  --zone-dev-tint-fg: #083e28;
+  --zone-app: #6e2409;
+  --zone-app-tint: #f7daca;
+  --zone-app-tint-fg: #5c1d07;
+  --zone-rev: #6b1247;
+  --zone-rev-tint: #f5d2e5;
+  --zone-rev-tint-fg: #5a0f3c;
+  --zone-dash: #4f3d05;
+  --zone-dash-tint: #ede4c0;
+  --zone-dash-tint-fg: #413204;
+  --zone-sys: #3b342b;
+  --zone-sys-tint: #e7e1d8;
+  --zone-sys-tint-fg: #312b23;
+}
+[data-scheme='B'][data-theme='dark'] {
+  --bg-page: #191411;
+  --bg-card: #241d18;
+  --bg-subtle: #302720;
+  --border: #8c7f73;
+  --border-strong: #bcaea1;
+  --text: #f3ede7;
+  --text-muted: #ccbfb3;
+  --text-label: #d8ccc1;
+  --primary: #f0a87a;
+  --primary-fg: #351506;
+  --primary-hover: #f7be97;
+  --primary-active: #e59b6d;
+  --primary-tint: #3b2418;
+  --primary-tint-fg: #f7be97;
+  --secondary-fg: #f7be97;
+  --secondary-border: #f0a87a;
+  --secondary-hover-bg: #3b2418;
+  --accent: #4fd5cd;
+  --accent-strong: #7fe4de;
+  --accent-pale: #0e3a38;
+  --accent-pale-fg: #86e6e0;
+  --danger: #ff9daf;
+  --danger-fg: #3d0517;
+  --danger-hover: #ffb8c5;
+  --success: #86dfa6;
+  --warning: #f0c46e;
+  --link: #f0a87a;
+  --link-hover: #f7be97;
+  --focus: #f0a87a;
+  --sidebar-bg: #1e1410;
+  --sidebar-fg: #e4d9cf;
+  --sidebar-sel-bg: #33241c;
+  --sidebar-sel-fg: #ffffff;
+  --sidebar-sel-bar: #4fd5cd;
+  --sidebar-hover-bg: #281b15;
+  --zone-dev: #6dd8ae;
+  --zone-dev-tint: #12332a;
+  --zone-dev-tint-fg: #8fe6c4;
+  --zone-app: #f0a87a;
+  --zone-app-tint: #3b2418;
+  --zone-app-tint-fg: #f7be97;
+  --zone-rev: #e594bc;
+  --zone-rev-tint: #381e2c;
+  --zone-rev-tint-fg: #efb2cf;
+  --zone-dash: #d9c46a;
+  --zone-dash-tint: #302913;
+  --zone-dash-tint-fg: #e5d48f;
+  --zone-sys: #c3b7a9;
+  --zone-sys-tint: #2c2620;
+  --zone-sys-tint-fg: #d5cbbf;
+}
+
+/* ── 未選模式時跟隨系統 ── */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']),
+  [data-scheme='A']:not([data-theme='light']) {
+    --sh: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.24);
+    --sh-hover: 0 2px 6px rgba(0, 0, 0, 0.36), 0 6px 14px rgba(0, 0, 0, 0.3);
+    --bg-page: #101a1d;
+    --bg-card: #17262a;
+    --bg-subtle: #1f3238;
+    --border: #6b8288;
+    --border-strong: #9cb2b8;
+    --text: #eaf2f3;
+    --text-muted: #b4c4c9;
+    --text-label: #c6d6da;
+    --primary: #6fdfd4;
+    --primary-fg: #062b2e;
+    --primary-hover: #8be9e0;
+    --primary-active: #55c9be;
+    --primary-tint: #123a3d;
+    --primary-tint-fg: #8be9e0;
+    --secondary-fg: #8be9e0;
+    --secondary-border: #6fdfd4;
+    --secondary-hover-bg: #123a3d;
+    --accent: #ff9552;
+    --accent-strong: #ffb585;
+    --accent-pale: #3a1d0c;
+    --accent-pale-fg: #ffc59e;
+    --danger: #ff9aa6;
+    --danger-fg: #3a0710;
+    --danger-hover: #ffb6bf;
+    --success: #7be0a4;
+    --warning: #f2c46b;
+    --link: #7fe3da;
+    --link-hover: #a6efe8;
+    --focus: #6fdfd4;
+    --sidebar-bg: #05282f;
+    --sidebar-fg: #d6e4e6;
+    --sidebar-sel-bg: #0b3a44;
+    --sidebar-sel-fg: #ffffff;
+    --sidebar-sel-bar: #ff9552;
+    --sidebar-hover-bg: #08323b;
+    --zone-dev: #5fd9bc;
+    --zone-dev-tint: #10352d;
+    --zone-dev-tint-fg: #86e8ce;
+    --zone-app: #93b4ff;
+    --zone-app-tint: #1a2547;
+    --zone-app-tint-fg: #afc7ff;
+    --zone-rev: #e098e4;
+    --zone-rev-tint: #331a34;
+    --zone-rev-tint-fg: #ebb2ee;
+    --zone-dash: #79c6ec;
+    --zone-dash-tint: #12303d;
+    --zone-dash-tint-fg: #9ad6f2;
+    --zone-sys: #b4bfd4;
+    --zone-sys-tint: #262b36;
+    --zone-sys-tint-fg: #c8d1e0;
+  }
+  [data-scheme='B']:not([data-theme='light']) {
+    --sh: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.24);
+    --sh-hover: 0 2px 6px rgba(0, 0, 0, 0.36), 0 6px 14px rgba(0, 0, 0, 0.3);
+    --bg-page: #191411;
+    --bg-card: #241d18;
+    --bg-subtle: #302720;
+    --border: #8c7f73;
+    --border-strong: #bcaea1;
+    --text: #f3ede7;
+    --text-muted: #ccbfb3;
+    --text-label: #d8ccc1;
+    --primary: #f0a87a;
+    --primary-fg: #351506;
+    --primary-hover: #f7be97;
+    --primary-active: #e59b6d;
+    --primary-tint: #3b2418;
+    --primary-tint-fg: #f7be97;
+    --secondary-fg: #f7be97;
+    --secondary-border: #f0a87a;
+    --secondary-hover-bg: #3b2418;
+    --accent: #4fd5cd;
+    --accent-strong: #7fe4de;
+    --accent-pale: #0e3a38;
+    --accent-pale-fg: #86e6e0;
+    --danger: #ff9daf;
+    --danger-fg: #3d0517;
+    --danger-hover: #ffb8c5;
+    --success: #86dfa6;
+    --warning: #f0c46e;
+    --link: #f0a87a;
+    --link-hover: #f7be97;
+    --focus: #f0a87a;
+    --sidebar-bg: #1e1410;
+    --sidebar-fg: #e4d9cf;
+    --sidebar-sel-bg: #33241c;
+    --sidebar-sel-fg: #ffffff;
+    --sidebar-sel-bar: #4fd5cd;
+    --sidebar-hover-bg: #281b15;
+    --zone-dev: #6dd8ae;
+    --zone-dev-tint: #12332a;
+    --zone-dev-tint-fg: #8fe6c4;
+    --zone-app: #f0a87a;
+    --zone-app-tint: #3b2418;
+    --zone-app-tint-fg: #f7be97;
+    --zone-rev: #e594bc;
+    --zone-rev-tint: #381e2c;
+    --zone-rev-tint-fg: #efb2cf;
+    --zone-dash: #d9c46a;
+    --zone-dash-tint: #302913;
+    --zone-dash-tint-fg: #e5d48f;
+    --zone-sys: #c3b7a9;
+    --zone-sys-tint: #2c2620;
+    --zone-sys-tint-fg: #d5cbbf;
+  }
+}
+
+/* ── 淺側欄變體（只覆寫側欄六個變數） ── */
+[data-sidebar='light'],
+[data-scheme='A'][data-sidebar='light'] {
+  --sidebar-bg: #e4edee;
+  --sidebar-fg: #1a252b;
+  --sidebar-sel-bg: #ffffff;
+  --sidebar-sel-fg: #073f47;
+  --sidebar-sel-bar: #8e3707;
+  --sidebar-hover-bg: #d7e4e6;
+}
+[data-scheme='A'][data-theme='dark'][data-sidebar='light'] {
+  --sidebar-bg: #1f3238;
+  --sidebar-fg: #eaf2f3;
+  --sidebar-sel-bg: #2b444c;
+  --sidebar-sel-fg: #ffffff;
+  --sidebar-sel-bar: #ff9552;
+  --sidebar-hover-bg: #253c43;
+}
+[data-scheme='B'][data-sidebar='light'] {
+  --sidebar-bg: #efe7df;
+  --sidebar-fg: #2a211a;
+  --sidebar-sel-bg: #ffffff;
+  --sidebar-sel-fg: #5c1d07;
+  --sidebar-sel-bar: #085250;
+  --sidebar-hover-bg: #e6dcd1;
+}
+[data-scheme='B'][data-theme='dark'][data-sidebar='light'] {
+  --sidebar-bg: #302720;
+  --sidebar-fg: #f3ede7;
+  --sidebar-sel-bg: #42352b;
+  --sidebar-sel-fg: #ffffff;
+  --sidebar-sel-bar: #4fd5cd;
+  --sidebar-hover-bg: #3a2e25;
+}
+/* 跟隨系統時的淺側欄深色值（上面 [data-sidebar="light"] 那條沒有 data-theme,
+   在「未選模式 + 系統是深色」時會誤用淺色側欄值,所以這裡補回來） */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light'])[data-sidebar='light'],
+  [data-scheme='A']:not([data-theme='light'])[data-sidebar='light'] {
+    --sidebar-bg: #1f3238;
+    --sidebar-fg: #eaf2f3;
+    --sidebar-sel-bg: #2b444c;
+    --sidebar-sel-fg: #ffffff;
+    --sidebar-sel-bar: #ff9552;
+    --sidebar-hover-bg: #253c43;
+  }
+  [data-scheme='B']:not([data-theme='light'])[data-sidebar='light'] {
+    --sidebar-bg: #302720;
+    --sidebar-fg: #f3ede7;
+    --sidebar-sel-bg: #42352b;
+    --sidebar-sel-fg: #ffffff;
+    --sidebar-sel-bar: #4fd5cd;
+    --sidebar-hover-bg: #3a2e25;
+  }
+}
+
+/* ============================================================
+ * 狀態 badge 色（15 個狀態共用 8 組色相）
+ *
+ * ★ 這一組不是從上面的品牌色票推出來的,是照「狀態 badge」的形狀規範
+ *   （淺底 ＋ 深字 ＋ 左側 3px 色塊、狀態色與品牌方案脫鉤,見 設計基準）
+ *   自己算出來的:規範只定義作法與狀態名稱,沒有指定色碼,所以 hex 在這裡決定,
+ *   並把實測值寫在旁邊（WCAG 相對亮度公式,與 accessibility-reports 同一條）。
+ *   ★ 因此它沒有掛 [data-scheme],切換方案 A／B 時 badge 不變 —— 這是本專案的決定:
+ *     狀態語意不該隨品牌配色漂移(理由見 設計基準)。
+ *     只隨 data-theme / prefers-color-scheme 換。
+ *
+ * 每組三個值:-bg（淺底）、-fg（深字,對 -bg ≥7:1）、-bar（左側 3px 色塊,對 -bg ≥3:1）。
+ * 淺色實測 fg/bg:neutral 12.12 / info 10.49 / teal 10.45 / green 10.21 /
+ *                amber 9.52 / red 10.71 / purple 11.82 / pink 10.75
+ * 深色實測 fg/bg:neutral 9.65 / info 9.27 / teal 8.92 / green 8.84 /
+ *                amber 9.17 / red 8.83 / purple 8.63 / pink 8.66
+ * bar/bg 最低 4.29（深色 purple）、4.39（淺色 amber）,都遠高於 1.4.11 的 3:1。
+ * ============================================================ */
+:root {
+  --st-neutral-bg: #e9eaec;
+  --st-neutral-fg: #26292e;
+  --st-neutral-bar: #5a6068;
+  --st-info-bg: #dde7f7;
+  --st-info-fg: #10305e;
+  --st-info-bar: #1b4f9c;
+  --st-teal-bg: #d5eaee;
+  --st-teal-fg: #0a363e;
+  --st-teal-bar: #12626f;
+  --st-green-bg: #d6ebdc;
+  --st-green-fg: #0c3a21;
+  --st-green-bar: #1a6b3c;
+  --st-amber-bg: #f3e6c8;
+  --st-amber-fg: #4a3400;
+  --st-amber-bar: #8a6300;
+  --st-red-bg: #f7dee1;
+  --st-red-fg: #5c0f1b;
+  --st-red-bar: #a31d2e;
+  --st-purple-bg: #e6def5;
+  --st-purple-fg: #331355;
+  --st-purple-bar: #5c2c93;
+  --st-pink-bg: #f7dde8;
+  --st-pink-fg: #56103a;
+  --st-pink-bar: #9a2360;
+}
+[data-theme='dark'] {
+  --st-neutral-bg: #2a2d33;
+  --st-neutral-fg: #d4d8de;
+  --st-neutral-bar: #8c949e;
+  --st-info-bg: #17253c;
+  --st-info-fg: #aecbf5;
+  --st-info-bar: #6e9ee0;
+  --st-teal-bg: #10333a;
+  --st-teal-fg: #9bdde7;
+  --st-teal-bar: #4fb6c6;
+  --st-green-bg: #123324;
+  --st-green-fg: #9fddb4;
+  --st-green-bar: #4cb577;
+  --st-amber-bg: #34290e;
+  --st-amber-fg: #edcb84;
+  --st-amber-bar: #c79a3a;
+  --st-red-bg: #3a1620;
+  --st-red-fg: #f5aeb7;
+  --st-red-bar: #d4707f;
+  --st-purple-bg: #2a1b3d;
+  --st-purple-fg: #cfb4ee;
+  --st-purple-bar: #9a73c9;
+  --st-pink-bg: #3a1a2a;
+  --st-pink-fg: #f0b0cc;
+  --st-pink-bar: #c9709a;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --st-neutral-bg: #2a2d33;
+    --st-neutral-fg: #d4d8de;
+    --st-neutral-bar: #8c949e;
+    --st-info-bg: #17253c;
+    --st-info-fg: #aecbf5;
+    --st-info-bar: #6e9ee0;
+    --st-teal-bg: #10333a;
+    --st-teal-fg: #9bdde7;
+    --st-teal-bar: #4fb6c6;
+    --st-green-bg: #123324;
+    --st-green-fg: #9fddb4;
+    --st-green-bar: #4cb577;
+    --st-amber-bg: #34290e;
+    --st-amber-fg: #edcb84;
+    --st-amber-bar: #c79a3a;
+    --st-red-bg: #3a1620;
+    --st-red-fg: #f5aeb7;
+    --st-red-bar: #d4707f;
+    --st-purple-bg: #2a1b3d;
+    --st-purple-fg: #cfb4ee;
+    --st-purple-bar: #9a73c9;
+    --st-pink-bg: #3a1a2a;
+    --st-pink-fg: #f0b0cc;
+    --st-pink-bar: #c9709a;
+  }
+}
+
+/* ---- Base reset + AAA defaults ---- */
+@layer base {
+  /* 1.4.8 AAA Visual Presentation — line-height ≥ 1.5、段距 ≥ 1.5× */
+  /* color-scheme 跟著使用者選擇走:未選 data-theme 時交給系統(light dark),
+     選了就鎖死,免得瀏覽器把捲軸與表單控制項畫成跟頁面相反的色。 */
+  html {
+    color-scheme: light dark;
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+    text-rendering: optimizeLegibility;
+  }
+  html[data-theme='light'] {
+    color-scheme: light;
+  }
+  html[data-theme='dark'] {
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: var(--bg-page);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 1rem; /* 16px base */
+    line-height: 1.6; /* > 1.5 AAA */
+    min-height: 100svh;
+  }
+
+  /* 1.4.8 AAA 段落間距 ≥ 1.5 × 行距 —— 規則本體不在這一層,見檔案最後的
+   * 「@layer utilities — 段落間距」那一段,那裡寫了為什麼不能放在 base。 */
+
+  /* 2.4.7 Focus Visible(AA required,AAA 加強 2.4.11) */
+  :focus-visible {
+    outline: 2px solid var(--focus); /* 規格:2px 實線 + 2px offset。--focus 對卡片底 11.00:1、對頁面底 10.15:1 */
+    outline-offset: 2px;
+    border-radius: var(--r-sm);
+  }
+
+  /* 深藍底(站頭、admin 側欄)上的 focus ring 換成側欄強調色 --sidebar-sel-bar
+     (方案 A 是 #E2661A):對側欄底 #06333C 3.98:1,超過 1.4.11 對焦點指示器的 3:1。
+     預設的 --focus(#084349)對深側欄底只有 1.09:1,鍵盤使用者會完全看不到焦點。
+     只認 .site-header(site-header.tsx)與 .admin-sidebar,不用裸的 header 元素選擇器:
+     各頁內容裡的 <header> 坐在淺底上,橘框對頁面底 #F4F6F7 只有 3.15:1,雖然仍過 3:1,
+     但深色的 --focus 在淺底上更清楚,所以淺底一律維持預設。 */
+  .site-header :focus-visible,
+  .admin-sidebar :focus-visible {
+    outline-color: var(--sidebar-sel-bar); /* 規格:側欄項目焦點 = 2px --sidebar-sel-bar */
+  }
+
+  /* 避免 :focus 殘留在滑鼠點擊時,但 keyboard 仍看得到 */
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  /* 2.5.5 AAA Target Size — 觸控區 ≥ 44×44
+   *
+   * ★ 44px 指的是「可以點的範圍」,不是控制項本身要長到 44px。
+   *   之前這條把 checkbox / radio 也包進來,結果每個勾選框都被撐成
+   *   44×44 的大方塊,旁邊配 14px 的字,比例整個壞掉。
+   *   正確做法:控制項維持正常尺寸,觸控區靠包在外面的 label 撐開。 */
+  button,
+  [role='button'],
+  a[href],
+  input[type='button'],
+  input[type='submit'],
+  input[type='reset'] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* 勾選控制項本身:正常尺寸,不要被上面那條或 reset 影響 */
+  input[type='checkbox'],
+  input[type='radio'] {
+    width: 1.125rem;
+    height: 1.125rem;
+    min-width: 0;
+    min-height: 0;
+    flex: none;
+    padding: 0;
+    /* 規格:核取方塊 / 單選鈕外框 2px --border-strong,選中時用 --primary-tint-fg。
+       accent-color 一次決定「選中時的填色」,瀏覽器會自己配對比夠的勾號顏色。 */
+    accent-color: var(--primary-tint-fg);
+    outline-offset: 2px;
+    cursor: pointer;
+  }
+
+  /* 觸控區:包著 checkbox / radio 的 label 給滿 44px 高
+   *
+   * font-size 直接下在 label 上(不是只給 > span),這樣不管選項文字是
+   * 包在 <span> 裡還是裸文字節點,都會是 15px,不會比 15px 的欄位標題小。
+   * 之前只設 > span,裸文字選項會繼承外層 .text-sm(14px)變得比標題小,
+   * 就是使用者說的「選項文字比欄位標題還小,看起來怪」。 */
+  label:has(> input[type='checkbox']),
+  label:has(> input[type='radio']) {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 44px;
+    padding-block: 0.25rem;
+    cursor: pointer;
+    line-height: 1.4;
+    font-size: 0.9375rem; /* 15px,與 .input / .field-label 同級 */
+  }
+
+  /* 輸入框邊框對比 ≥ 3:1(非文字 UI) */
+  input,
+  textarea,
+  select {
+    /* 元件尺寸規格:輸入框 44px / 0 14px / 圓角 6px / 1.5px --border;
+       一般態底 --bg-card、字 --text(不是頁面底 —— 輸入框要比頁面底亮才像可填的欄位)。 */
+    border: 1.5px solid var(--border);
+    border-radius: var(--r-sm);
+    padding: 0.4375rem 0.625rem; /* 7px 10px */
+    background-color: var(--bg-card);
+    color: var(--text);
+    line-height: 1.5;
+    font-size: 0.9375rem; /* 15px,比 body 16px 略小 */
+    /* 2.5.5 AAA 的 44px 不分裝置。這裡以前只在 @media(max-width:640px) 裡給,
+       641px 以上(所有桌面)實際只有 padding 撐出來的 ~40px,
+       而 /accessibility 與 docs/WCAG_COMPLIANCE.md 對外寫的是「所有可以按的東西都不小於 44×44」。
+       <input> 是 void element,::after 不會被繪製,所以 .btn-sm / .btn-xs 那種
+       「視覺小、::after 撐命中區」的做法在這裡用不了 —— 直接把控制項本身做到 44px。 */
+    min-height: 44px;
+  }
+  /* 滑過:框加深到 --border-strong（規格） */
+  input:hover:not(:disabled):not([readonly]),
+  textarea:hover:not(:disabled):not([readonly]),
+  select:hover:not(:disabled) {
+    border-color: var(--border-strong);
+  }
+  /* 焦點:框 1.5px --focus ＋ outline 2px --focus offset 2px（規格;≥2px 硬性要求） */
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+    border-color: var(--focus);
+  }
+  /* 停用 / 唯讀:底 --bg-subtle、字 --text-muted;唯讀游標維持文字選取（規格） */
+  input:disabled,
+  textarea:disabled,
+  select:disabled {
+    background-color: var(--bg-subtle);
+    color: var(--text-muted);
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+  input[readonly],
+  textarea[readonly] {
+    background-color: var(--bg-subtle);
+    color: var(--text-muted);
+    cursor: text;
+  }
+  /* 錯誤:框 2px --danger（規格）。訊息文字由 call site 用 .field-error 出，
+     並且一定要帶「！」符號 —— 不能只靠顏色（1.4.1）。 */
+  input[aria-invalid='true'],
+  textarea[aria-invalid='true'],
+  select[aria-invalid='true'] {
+    border-width: 2px;
+    border-color: var(--danger);
+  }
+  textarea {
+    min-height: 88px;
+    line-height: 1.7;
+  }
+  select {
+    padding-right: 2.25rem;
+  }
+  /* 表單標籤:深灰,不用純黑,跟欄位值分得開。#1e293b on surface 14.63 / on background 13.00 */
+  label {
+    color: var(--color-label); /* = var(--text-label)，走舊 token 讓它留在產物裡 */
+  }
+
+  /* 響應式:手機 input 字體(44px 已在上面無條件給了) */
+  @media (max-width: 640px) {
+    input,
+    textarea,
+    select {
+      font-size: 1rem; /* iOS 防 zoom */
+      padding: 0.625rem 0.75rem; /* 10px 12px 比桌面再大,touch 友善 */
+    }
+  }
+
+  /* 1.4.8 AAA 段落最大行長 80ch */
+  .prose-width,
+  main p,
+  main li {
+    max-width: 80ch;
+  }
+
+  /* 標題層級(2.4.6) */
+  /* 桌面為主、admin 稠密 — h1 從 32px 改 24px / h2 18px / h3 15px */
+  h1 {
+    font-size: 1.5rem; /* 24px */
+    font-weight: 700;
+    line-height: 1.25;
+    letter-spacing: -0.01em;
+  }
+  h2 {
+    font-size: 1.125rem; /* 18px */
+    font-weight: 600;
+    line-height: 1.3;
+  }
+  h3 {
+    font-size: 0.9375rem; /* 15px */
+    font-weight: 600;
+    line-height: 1.4;
+  }
+  @media (min-width: 1024px) {
+    /* 大螢幕 h1 微放大 */
+    h1 {
+      font-size: 1.625rem;
+    }
+  }
+
+  /* ── 功能區變數 ─────────────────────────────────────────────
+   * admin/layout.tsx 依 pathname 算出 data-area 放在 admin 內容外框(main 的直接子層)上,
+   * 這裡把它翻成兩個 CSS 變數讓 .card / 標題 / 表頭 / focus 全部跟著換色。
+   * :root 給預設(業務開發區的藍綠),所以首頁、登入頁這種沒有 data-area 的頁吃它。 */
+  /* ★ 2026-09 併入設計系統後多了第三個變數 --area-tint-fg。
+     原因:新色票在深色模式下 --zone-* 是「亮色」,它當色條與 surface 上的標題字沒問題,
+     但 tint 底本身在深色模式是暗的,所以「tint 底上的文字」要用另外定義的
+     --zone-*-tint-fg,不能沿用 --area-accent。淺色模式同理（zone 主色是深色,
+     壓在淺 tint 上雖然也過 7:1,但這裡一律用 tint-fg,四種組合才是同一套規則）。 */
+  /* ★ 這裡刻意繼續走舊 token（--color-area-*,它們自己已經是新 --zone-* 的別名),
+     不直接寫 var(--zone-*)。理由:Tailwind v4 會把「沒有任何地方引用到」的
+     @theme 變數整個從產物裡搖掉,若這裡跳過舊 token,--color-area-* 就會從
+     產物 CSS 消失 —— 別名還在原始碼裡,但別人寫 bg-area-crm 以外的方式引用時就撲空。
+     保留這一層轉接,舊 token 才真的「一個都沒少」。 */
+  /* 這裡的 data-area 值要跟 lib/app-settings.tsx 的 AreaKey
+     ('crm' | 'field' | 'team' | 'system')一對一。以前列的是 apps / review / dashboard
+     三個已經不存在的區,而真正會出現在 DOM 上的 field 與 team 一條都沒有,
+     兩區只能吃 :root 的預設值。每一區的預設色對齊 app-settings.tsx 的預設 areaColors
+     (crm=dev、field=app、team=rev、system=sys)。 */
+  :root {
+    --area-accent: var(--color-area-crm);
+    --area-tint: var(--color-area-crm-tint);
+    --area-tint-fg: var(--zone-dev-tint-fg);
+  }
+  [data-area='crm'] {
+    --area-accent: var(--color-area-crm);
+    --area-tint: var(--color-area-crm-tint);
+    --area-tint-fg: var(--zone-dev-tint-fg);
+  }
+  [data-area='field'] {
+    --area-accent: var(--color-area-apps);
+    --area-tint: var(--color-area-apps-tint);
+    --area-tint-fg: var(--zone-app-tint-fg);
+  }
+  [data-area='team'] {
+    --area-accent: var(--color-area-review);
+    --area-tint: var(--color-area-review-tint);
+    --area-tint-fg: var(--zone-rev-tint-fg);
+  }
+  [data-area='system'] {
+    --area-accent: var(--color-area-system);
+    --area-tint: var(--color-area-system-tint);
+    --area-tint-fg: var(--zone-sys-tint-fg);
+  }
+
+  /* ── 功能區識別色改由後台設定決定(data-zone)─────────────────────
+   * data-area 說的是「這是哪一區」,data-zone 說的是「這一區用哪一組色」。
+   * 兩者分開,是因為哪一區用什麼色由系統管理者在 /admin/settings 挑,
+   * 不是寫死在程式裡 —— 但能挑的只有下面這五組(每一組的
+   * accent / tint / tint-fg 在淺色、深色、方案 A、B 四種組合都量過 >= 7:1)。
+   * 不開放自由填色碼:填一個亮色就會讓整區的字掉出 AAA,而設定頁上看不出來。
+   * data-zone 寫在 data-area 之後,同一元素上以 zone 為準。 */
+  [data-zone='dev'] {
+    --area-accent: var(--color-area-crm);
+    --area-tint: var(--color-area-crm-tint);
+    --area-tint-fg: var(--zone-dev-tint-fg);
+  }
+  [data-zone='app'] {
+    --area-accent: var(--color-area-apps);
+    --area-tint: var(--color-area-apps-tint);
+    --area-tint-fg: var(--zone-app-tint-fg);
+  }
+  [data-zone='rev'] {
+    --area-accent: var(--color-area-review);
+    --area-tint: var(--color-area-review-tint);
+    --area-tint-fg: var(--zone-rev-tint-fg);
+  }
+  [data-zone='dash'] {
+    --area-accent: var(--color-area-dashboard);
+    --area-tint: var(--color-area-dashboard-tint);
+    --area-tint-fg: var(--zone-dash-tint-fg);
+  }
+  [data-zone='sys'] {
+    --area-accent: var(--color-area-system);
+    --area-tint: var(--color-area-system-tint);
+    --area-tint-fg: var(--zone-sys-tint-fg);
+  }
+
+  /* 頁面主標題:左側 6px 功能區色條 + 底線。保守版(只給 h1 本身,不動它的容器),
+   * 完整版是 .card-head / .page-title(components 層)。 */
+  main h1 {
+    border-left: 6px solid var(--area-accent);
+    border-bottom: 2px solid rgb(from var(--area-accent) r g b / 0.35);
+    padding-left: 0.75rem;
+    padding-bottom: 0.25rem;
+  }
+
+  /* 區塊標題(h2 / h3):功能區 accent 色粗體 + 下方 2px accent 底線,全站同一種。
+   * 五組 accent 對 surface 最低 10.81:1(crm)、對 background 最低 9.97:1、對自己的 tint 最低 8.22:1 ✓。
+   * .sr-only 的 h2 有 clip,邊線畫不出來,不必排除;.card-head 裡的標題由 .card-head 自己收底線。 */
+  main h2,
+  main h3 {
+    color: var(--area-accent);
+    border-bottom: 2px solid var(--area-accent);
+    padding-bottom: 0.25rem;
+  }
+  main h3 {
+    border-bottom-width: 1px; /* h3 比 h2 輕一階:1px 實色 accent(不用半透明,對底一樣 ≥ 7:1) */
+  }
+  main .card-head :is(h1, h2, h3),
+  main .page-title h1 {
+    border-bottom: 0;
+    padding-bottom: 0;
+  }
+
+  /* 連結可辨識性 — 不只靠顏色(加底線) */
+  main a:not([role='button']) {
+    color: var(--link);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  main a:not([role='button']):hover {
+    color: var(--link-hover);
+  }
+
+  /* abbr(3.1.3 AAA Jargon glossary)
+   *
+   * 虛線底 + 滑鼠停留時的瀏覽器原生 tooltip。原生 tooltip 只吃 hover,
+   * **不會**因為鍵盤焦點出現 —— 只加 tabindex 也一樣不會出現,
+   * 所以純鍵盤的人在修好之前拿不到 3.1.3 要求的白話解釋。
+   * 這裡用 ::after + content: attr(title) 自己畫一個,只在 :focus-visible 時顯示,
+   * 焦點離開就消失,滑鼠使用者看到的還是原生 tooltip(不會兩個一起冒出來)。
+   * 可聚焦這件事由 <AbbrKeyboardFocus> 補 tabindex="0",見該元件的註解。 */
+  abbr[title] {
+    text-decoration: underline dotted;
+    text-underline-offset: 3px;
+    cursor: help;
+    position: relative;
+  }
+  abbr[title]:focus-visible::after {
+    content: attr(title);
+    position: absolute;
+    z-index: 50;
+    inset-inline-start: 0;
+    top: calc(100% + 0.5rem);
+    width: max-content;
+    max-width: min(28rem, 80vw);
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--r-md);
+    background-color: var(--bg-card);
+    color: var(--text);
+    text-align: start;
+    text-decoration: none;
+    white-space: normal;
+    box-shadow: 0 2px 8px rgb(0 0 0 / 0.15);
+  }
+
+  /* 選取文字對比 */
+  ::selection {
+    background-color: var(--primary);
+    color: var(--primary-fg);
+  }
+}
+
+/* ---- 2.3.3 AAA + prefers-reduced-motion ---- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---- SkipLink(2.4.1 Bypass Blocks) ---- */
+/* 2026-09 併入設計系統:站頭底色改成 --sidebar-bg,skip link 不能再寫死顏色。
+   底用 --sidebar-sel-bg(它的定義就是「側欄選中底,比側欄底提一階」),
+   字用 --sidebar-sel-fg,方案 A 淺色實算 #FFFFFF on #0D4653 = 10.41:1 ✓ AAA;
+   外框 2px --sidebar-sel-bar,對 --sidebar-bg 3.98:1(≥ 1.4.11 的 3:1),負責把這塊從站頭上「框出來」——
+   單靠 sel-bg 對 sidebar-bg 只有一階明度差,不夠讓鍵盤使用者一眼看到焦點。
+   四種組合(A/B × 淺/深)與兩種側欄(深/淺)都由變數自己換,這裡不寫死任何 hex。 */
+.skip-link {
+  position: absolute;
+  top: 0;
+  left: 0;
+  padding: 0.75rem 1rem;
+  background-color: var(--sidebar-sel-bg);
+  color: var(--sidebar-sel-fg);
+  font-weight: 700;
+  transform: translateY(-100%);
+  z-index: 1000;
+  text-decoration: none;
+}
+.skip-link:focus {
+  transform: translateY(0);
+  outline: 2px solid var(--sidebar-sel-bar);
+  outline-offset: 2px;
+}
+
+/* ---- 頁尾導覽連結的命中區(2.5.5 AAA) ---- */
+/* ★ 這一條存在的理由,不要改回單純的 utility class:
+   @layer base 有 a[href]{min-height:44px;min-width:44px},在產物 CSS 裡也確實贏了,
+   computed value 就是 44px。但那三條頁尾連結是 display:inline,而 CSS 對非替換
+   行內元素明訂忽略 min-height 與 min-width —— 宣告值對、使用值錯,實測命中框是
+   70×16。p1 探針讀的是產物 CSS 的宣告值,它判定「有 44px,OK」,所以這一種
+   破法靜態剖析結構上看不到,只有真的量框才量得出來。
+   改成 inline-flex 之後那三個框是 70×44 / 70×44 / 56×44。
+   只給頁尾這三條獨立導覽項用:句子裡的行內連結不能這樣撐,撐開會把行距推壞,
+   而 2.5.5 對「句子裡的行內連結」本來就有例外。
+   寫在任何 @layer 之外(unlayered),所以贏得過 utilities 層。 */
+.footer-nav-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  min-width: 44px;
+  color: var(--text);
+  text-decoration: none;
+}
+.footer-nav-link:hover {
+  text-decoration: underline;
+}
+
+/* ---- 環境徽章(非 production 才顯示) ---- */
+.env-badge {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  border-radius: var(--radius-sm);
+  background-color: var(--color-warning);
+  color: var(--color-warning-foreground);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  /* ★ 唯一一處「把行高壓回去」的地方,理由寫在這裡:
+     這個徽章掛在頁尾的 <p class="text-xs"> 裡面,如果不宣告行高,它會繼承 .text-xs 的
+     正文行高。@theme 把 --text-xs--line-height 拉到 1.5(1.4.8 AAA)之後,
+     徽章會跟著從 12×1.3333=16px 長到 12×1.5=18px,連同上下 padding 由 20px 變 22px。
+     1.4.8 Visual Presentation 管的是 blocks of text —— 連續散文;一個環境標籤不是段落,
+     它的行高是元件的版面決策,不該被正文的無障礙規則遠端接管。
+     這裡宣告 1.4(與 .badge 同值),量出來是 12×1.4=16.8px、含 padding 20.8px,
+     跟改動前的 20px 幾乎一樣。
+     這一條也讓 p14-line-height-allowlist.json 的 env-badge 條目說得通 ——
+     那條的理由寫「它自己的行高由 .env-badge 決定」,不宣告的話那句話就是假的。
+     .env-badge 寫在任何 @layer 之外(unlayered),所以贏得過 utilities 層的 .text-xs。 */
+  line-height: 1.4;
+}
+
+/* ============================================================
+ * Admin Dashboard 用元件(desktop-first 緊湊版)
+ * 用法:在 .tsx 直接 className="card btn btn-primary" 等
+ * 設計目標:
+ *  - 預設密度比 mobile 高一檔
+ *  - 跨頁一致(card / btn / table / badge)
+ *  - 仍維持 WCAG AAA 對比 + 44px 點擊區
+ *
+ * ★ 層級順序注意事項(Tailwind v4)
+ *   @import 'tailwindcss' 會宣告 @layer theme, base, components, utilities。
+ *   本區塊在 components 層,排在 base 層之後,所以這裡任何 min-height 都會
+ *   蓋過 @layer base 的 button{min-height:44px}。
+ *   → 這裡每一個可點擊元件都必須「自己」把 44px 命中區補回來,
+ *     不能假設 base 那條會生效(2026-08 獨立驗收 B-1 就是踩到這個)。
+ * ============================================================ */
+@layer components {
+  /* ---- Card ------------------------------------- */
+  /* 白底 + 1px 邊框(3.68:1 vs 白 / 3.39:1 vs 頁面底)+ 頂端 4px 功能區色條 + 圓角 + 輕陰影。
+     頁面底是 #F4F6F7,卡片是純白,再加色條與陰影,卡片跟頁面一眼分得開。 */
+  /* 元件尺寸規格:卡片 = 內距 20px（手機 16px）/ 圓角 10px / 1px --border / 陰影 --sh */
+  .card {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border);
+    border-top: 4px solid var(--area-accent);
+    border-radius: var(--r-lg);
+    padding: 1rem;
+    box-shadow: var(--sh);
+  }
+  @media (min-width: 1024px) {
+    .card {
+      padding: var(--pad-card);
+    }
+  }
+  .card-compact {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border);
+    border-top: 3px solid var(--area-accent);
+    border-radius: var(--r-md);
+    padding: 0.75rem;
+    box-shadow: var(--sh);
+  }
+  /* 卡片標題列:tint 底 + accent 深字 + 下邊框。放在 .card 第一個子元素時把 padding 撐到卡片邊。
+     accent 字 on tint 最低 8.22:1(dashboard)✓;各組的 tint-fg on tint 最低 10.47:1 ✓
+     ★ 2026-09 目前沒有任何 .tsx 用到 .card-head 與下面的 .page-title(grep 零處),
+       保留是給之後要做「完整版」標題區的人用;base 層的 main h2/h3 底線在這兩個容器裡會被收掉。 */
+  .card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.625rem 1rem;
+    background-color: var(--area-tint);
+    color: var(--area-tint-fg); /* tint 底上的字用 tint-fg,不是 accent（深色模式 accent 是亮色） */
+    font-weight: 700;
+    border-bottom: 1px solid var(--border);
+    min-height: 52px; /* 規格:卡片標題列 52px */
+  }
+  .card > .card-head:first-child {
+    margin: -1rem -1rem 1rem;
+    border-radius: 0 0 0 0;
+  }
+  @media (min-width: 1024px) {
+    .card > .card-head:first-child {
+      margin: -1.25rem -1.25rem 1rem;
+    }
+  }
+  .card-head :is(h1, h2, h3) {
+    color: inherit;
+    margin: 0;
+  }
+  /* 頁面標題區塊(完整版):左側 6px accent 色條 + tint 底。
+     用法:<div class="page-title"><h1>…</h1></div>;h1 本身的保守版樣式(base 層)在這裡收掉。 */
+  .page-title {
+    border-left: 6px solid var(--area-accent);
+    background-color: var(--area-tint);
+    padding: 0.625rem 1rem;
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  }
+  .page-title h1 {
+    border: 0;
+    padding: 0;
+    color: var(--area-tint-fg); /* 坐在 --area-tint 上,同 .card-head */
+  }
+
+  /* ---- Section heading -------------------------- */
+  .section-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 0.5rem;
+  }
+  .field-label {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--text-label); /* 規格:欄位標籤色 --text-label */
+    margin-bottom: 0.25rem;
+    display: block;
+  }
+
+  /* ---- Buttons --------------------------------- */
+  /* 元件尺寸規格:按鈕 44px / 0 20px / 圓角 6px / 15px 700 1.5。
+     裸的 .btn = 次按鈕:底 --bg-card、字 --secondary-fg、框 1.5px --secondary-border。 */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--r-sm);
+    padding: 0.5rem 1.25rem; /* 左右 20px */
+    font-size: 0.9375rem; /* 15px */
+    font-weight: 700;
+    line-height: 1.5;
+    /* 2.5.5 AAA:base 層的 button{min-height:44px} 會被本層蓋掉,所以直接寫死 44px。
+       min-width 沒有在這裡宣告,base 的 min-width:44px 仍然有效。 */
+    /* 44px 寫死不用 var(--btn-h)（值一樣）:命中區檢查是靜態解析產物 CSS,
+       解不開 var(),寫成變數會讓 2.5.5 AAA 的命中區探針算不出來而變成盲區。 */
+    min-height: 44px;
+    position: relative;
+    border: 1.5px solid var(--secondary-border);
+    background-color: var(--bg-card);
+    color: var(--secondary-fg);
+    text-decoration: none;
+    transition: background-color 120ms;
+  }
+  .btn:hover:not(:disabled) {
+    background-color: var(--secondary-hover-bg);
+  }
+  /* 按下:底 --primary-tint / 字 --primary-tint-fg / 框 --primary-active（規格） */
+  .btn:active:not(:disabled) {
+    background-color: var(--primary-tint);
+    color: var(--primary-tint-fg);
+    border-color: var(--primary-active);
+  }
+  /* 停用:字 --text-muted / 框 --border / opacity .7（規格） */
+  .btn:disabled,
+  .btn[aria-disabled='true'] {
+    color: var(--text-muted);
+    border-color: var(--border);
+    background-color: var(--bg-card);
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+  .btn:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+  /* 主按鈕:底 --primary / 字 --primary-fg / 無邊框（規格;這裡邊框同底色,尺寸才不會跳） */
+  .btn-primary {
+    background-color: var(--primary);
+    color: var(--primary-fg);
+    border-color: var(--primary);
+    font-weight: 700;
+  }
+  /* hover 用壓深的 --color-primary-hover,不用 filter:brightness()。
+     filter 會連按鈕上的白字一起作用:brightness(1.1) 把底提亮、白字已經是 255 提不動,
+     白字對比從 7.6008 掉到 6.6570,反而破 AAA;往暗調(brightness(0.9))則會把白字
+     一起壓成 #e6e6e6,對比只有 6.9316,一樣不行。換成明確的底色就沒有這個問題。 */
+  .btn-primary:hover:not(:disabled) {
+    background-color: var(--primary-hover);
+    border-color: var(--primary-hover);
+    color: var(--primary-fg);
+    box-shadow: var(--sh-hover); /* 規格:主按鈕 hover 加 --sh-hover */
+  }
+  /* 按下:底 --primary-active,陰影移除（規格） */
+  .btn-primary:active:not(:disabled) {
+    background-color: var(--primary-active);
+    border-color: var(--primary-active);
+    color: var(--primary-fg);
+    box-shadow: none;
+  }
+  /* 停用:底 --bg-subtle / 字 --text-muted / opacity .7（規格） */
+  .btn-primary:disabled,
+  .btn-primary[aria-disabled='true'] {
+    background-color: var(--bg-subtle);
+    border-color: var(--bg-subtle);
+    color: var(--text-muted);
+    opacity: 0.7;
+    box-shadow: none;
+  }
+  /* ── 外框按鈕 hover 從「10% 同色淡底」改成反白實心 ──────────────────
+   * 舊做法(10% 同色淡底)在 2026-08 色票下是 6.48~6.84:1,四種全部跌破 7:1。
+   * 反白之後 = 白字對該色實底,現行方案 A 淺色實算 10.18~12.14:1 ✓
+   * (warning 10.18 / destructive 10.51 / primary 11.00 / success 12.14),
+   * 而且 hover 的視覺回饋比一層 10% 的洗色明顯得多。
+   * 邊框顏色不變,所以按鈕的外形不會在 hover 時跳動。 */
+  /* danger 改實心(白字 on --danger #7E1223 10.51:1 ✓),hover 壓深(#630E1B 13.05:1)。
+     warning / success 維持外框,hover 反白。 */
+  /* 危險按鈕:底 --danger / 字 --danger-fg;hover --danger-hover ＋ --sh-hover;按下陰影移除。
+     方案 B 的主色與危險紅相近,所以本專案規定危險動作一律再配「！」符號與確認視窗 ——
+     那是 call site 的責任,這裡只負責顏色。 */
+  .btn-danger {
+    background-color: var(--danger);
+    color: var(--danger-fg);
+    border-color: var(--danger);
+    font-weight: 700;
+  }
+  .btn-danger:hover:not(:disabled) {
+    background-color: var(--color-destructive-hover); /* = var(--danger-hover) */
+    border-color: var(--color-destructive-hover);
+    color: var(--danger-fg);
+    box-shadow: var(--sh-hover);
+  }
+  .btn-danger:active:not(:disabled) {
+    background-color: var(--danger-hover);
+    border-color: var(--danger-hover);
+    box-shadow: none;
+  }
+  .btn-danger:disabled,
+  .btn-danger[aria-disabled='true'] {
+    background-color: var(--bg-subtle);
+    border-color: var(--bg-subtle);
+    color: var(--text-muted);
+    opacity: 0.7;
+    box-shadow: none;
+  }
+  /* .btn-warning / .btn-success 不在按鈕規格的三種裡（只有主／次／危險,見 設計基準）。
+     維持外框形狀,但 hover 不再翻成「語意色實底 + 白字」——
+     深色模式的 --success / --warning 是亮色,白字疊上去只有 ~2:1,會直接破 AAA。
+     改成 hover 換成對應的狀態淺底 + 狀態深字(實算:淺色 9.52~12.12:1、深色 8.63~9.65:1,
+     見狀態 badge 那段)。 */
+  .btn-warning {
+    background-color: transparent;
+    color: var(--warning);
+    border-color: var(--warning);
+  }
+  .btn-warning:hover:not(:disabled) {
+    background-color: var(--st-amber-bg);
+    color: var(--st-amber-fg);
+    border-color: var(--st-amber-bar);
+  }
+  .btn-success {
+    background-color: transparent;
+    color: var(--success);
+    border-color: var(--success);
+  }
+  .btn-success:hover:not(:disabled) {
+    background-color: var(--st-green-bg);
+    color: var(--st-green-fg);
+    border-color: var(--st-green-bar);
+  }
+  /* .btn-sm / .btn-xs:視覺尺寸維持小,命中區另外撐開
+   *
+   * 44px 是「可以點的範圍」,不是按鈕要長到 44px(見
+   * 「44×44 會讓介面顯得鬆散」那個常見顧慮)。
+   * admin 表格列的操作鈕若真的長到 44px,一列會被撐爆,所以改成:
+   *   視覺高度不動 → ::after 以絕對定位往上下各撐出差額,湊滿 44px。
+   * ::after 是宿主元素的一部分,點在上面等同點按鈕本身,不需要 pointer-events 設定。
+   * 只撐 inset-block(上下),inset-inline 維持 0,所以不會蓋到左右相鄰的按鈕;
+   * 寬度方向由 base 的 button/a[href]{min-width:44px} 負責(本層沒有覆寫 min-width)。 */
+  .btn-sm {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.8125rem;
+    min-height: 32px;
+    position: relative; /* ::after 命中區的定位參考;不依賴一定要同時掛 .btn */
+  }
+  .btn-xs {
+    padding: 0.25rem 0.625rem;
+    font-size: 0.75rem;
+    min-height: 28px;
+    position: relative;
+  }
+  .btn-sm::after,
+  .btn-xs::after {
+    content: '';
+    position: absolute;
+    inset-inline: 0;
+    inset-block: -6px; /* 32 + 6*2 = 44 */
+  }
+  .btn-xs::after {
+    inset-block: -8px; /* 28 + 8*2 = 44 */
+  }
+
+  /* ---- Form inputs ------------------------------ */
+  /* 規格:輸入框 44px / 0 14px / 圓角 6px / 1.5px --border / 15px 400 1.5 */
+  .input {
+    width: 100%;
+    padding: 0.5rem 0.875rem;
+    font-size: 0.9375rem;
+    line-height: 1.5;
+    border: 1.5px solid var(--border);
+    border-radius: var(--r-sm);
+    background-color: var(--bg-card);
+    color: var(--text);
+    /* 44px 是 WCAG 2.5.5 AAA 的命中區門檻,不分視窗寬度。
+       這裡以前是 36px,只有 @media(max-width:640px) 才蓋成 44px,
+       所以 641px 以上的桌面全部只有 36px。
+       cascade layer 的關係讓這條一定贏過 base 的 input{min-height:44px},
+       所以本層漏寫就等於整個桌面破功 —— 這正是 P1 探針要盯住的那一種失效。 */
+    min-height: 44px;
+  }
+  .input:hover:not(:disabled):not([readonly]) {
+    border-color: var(--border-strong);
+  }
+  .input:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+    border-color: var(--focus);
+  }
+  .input:disabled {
+    background-color: var(--bg-subtle);
+    color: var(--text-muted);
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+  .input[readonly] {
+    background-color: var(--bg-subtle);
+    color: var(--text-muted);
+    cursor: text;
+  }
+  .input[aria-invalid='true'] {
+    border-width: 2px;
+    border-color: var(--danger);
+  }
+  /* 欄位錯誤訊息:13px/600 --danger,一定要帶「！」——不能只靠顏色（1.4.1）。
+     call site 用 <p class="field-error" role="alert">！…</p>。 */
+  .field-error {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    line-height: 1.6;
+    color: var(--danger);
+  }
+  /* 欄位說明文字:13px/400/1.6 --text-muted（規格） */
+  .field-hint {
+    font-size: 0.8125rem;
+    line-height: 1.6;
+    color: var(--text-muted);
+  }
+  /* 必填星號:14px/700 --danger（規格） */
+  .field-required {
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: var(--danger);
+    margin-inline-start: 4px;
+  }
+  /* 手機端:base 層 @media(max-width:640px) 的 input{font-size:1rem} 會被上面這條蓋掉,
+     所以在本層再宣告一次。16px 是 iOS Safari 聚焦時不自動放大頁面的門檻,低於 16px 就會 zoom。 */
+  @media (max-width: 640px) {
+    .input {
+      font-size: 1rem;
+      padding: 0.625rem 0.75rem;
+    }
+  }
+
+  /* ---- Tables ----------------------------------- */
+  .table-compact {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+  }
+  /* 元件尺寸規格:表頭 44px / 下框 2px --border-strong / 底 --bg-subtle / 13px 700。
+     ★ 這裡跟改動前不一樣:表頭以前吃功能區 tint + accent 字。功能區色現在限縮在
+       「頁面標題色條、卡片頂端 4px 色條、區塊標題」三處,表頭不在其中,所以改回中性底。
+       功能區識別由卡片頂端色條與標題承載,表格本身不再帶顏色。 */
+  .table-compact thead {
+    background-color: var(--bg-subtle);
+    border-bottom: 2px solid var(--border-strong);
+  }
+  .table-compact thead th {
+    padding: 0.625rem 0.75rem;
+    text-align: left;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-label); /* --text-label 對 --bg-subtle ≥10:1 ✓ */
+    min-height: 44px;
+  }
+  /* 表格列:一般 底 --bg-card / 滑過 底 --primary-tint / 下框 1px --bg-subtle（規格）。
+     選中列（aria-selected）底 --primary-tint ＋左 3px --primary ＋字 --primary-tint-fg 700。 */
+  .table-compact tbody tr {
+    border-bottom: 1px solid var(--bg-subtle);
+    background-color: var(--bg-card);
+  }
+  .table-compact tbody tr:nth-child(even) {
+    background-color: var(--bg-subtle);
+  }
+  .table-compact tbody tr:last-child {
+    border-bottom: none;
+  }
+  .table-compact tbody tr:hover {
+    background-color: var(--primary-tint);
+  }
+  .table-compact tbody tr:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: -2px;
+  }
+  .table-compact tbody tr[aria-selected='true'] {
+    background-color: var(--primary-tint);
+    color: var(--primary-tint-fg);
+    font-weight: 700;
+    box-shadow: inset 3px 0 0 0 var(--primary);
+  }
+  /* 已作廢案件:字 --text-muted / opacity .6（規格）。一定要同時掛文字狀態,不能只靠淡化。 */
+  .table-compact tbody tr[data-void='true'] {
+    color: var(--text-muted);
+    opacity: 0.6;
+  }
+  .table-compact tbody td {
+    padding: 0.625rem 0.75rem;
+    vertical-align: middle;
+  }
+
+  /* ---- Badges ----------------------------------- */
+  /* 元件規格 狀態 badge:淺底 ＋ 深字 ＋ 左側 3px 色塊,26px 高（表格內 24px）、
+     圓角 4px、13px/700、左右內距 10px。badge 一律帶文字,不單靠顏色。 */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 26px;
+    padding: 0 0.625rem;
+    border-radius: 4px;
+    border-left: 3px solid transparent;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    line-height: 1.5;
+    white-space: nowrap;
+    background-color: var(--st-neutral-bg);
+    color: var(--st-neutral-fg);
+    border-left-color: var(--st-neutral-bar);
+  }
+  .table-compact .badge {
+    min-height: 24px;
+  }
+  /* ── 為什麼徽章從「12% 淡底 + 同色深字」改成「實心底 + 白字」──────────
+   * 換成 Okabe-Ito 壓深四色之後,舊配方**整組**跌破 7:1,不是只有一個顏色:
+   *   12% 同色淡底疊在 surface 上 → primary 6.02 / success 6.35 / warning 6.02 / danger 6.08
+   *   疊在表格 hover 列(muted/50)上更低 → 5.85 / 6.20 / 5.85 / 5.94
+   * 調低 alpha 救不回來:四色對「表格 hover 列」本身只有 7.05~7.50:1,
+   *   淡底一定是同色往下壓,alpha→0 的極限就是 7.05,連 alpha=0.05 都只有 6.52。
+   *   也就是說「語意色當自己文字的底」這個形狀在這組色票下數學上不可能達標。
+   * 再壓深一階也不行:那會動到業主已經拍板的四個色值。
+   * 所以改成實心底 + 白字,對比 = 該色對白的比值,直接等於上面 @theme 註解那四個數:
+   *   primary 7.6008 / success 8.0401 / warning 7.5575 / destructive 7.6781,全部 ≥ 7 ✓
+   *   而且不受容器底色影響 —— 白底、card、表格 hover 列都是同一個數字。
+   * 附帶好處:12% 的淡底本來就是一片近乎灰的洗色,色相根本看不出來;
+   *   實心底才讓 Okabe-Ito 的色相分離真的被看見,這正是這次換色的目的。
+   * .badge-muted 維持中性淡底 + 深字(--text-muted #3B4850 on --bg-subtle #E9EDEF = 8.00:1):它是「草稿 / 無狀態」,
+   *   視覺上就該比四個有狀態的徽章弱一階,不跟著改成實心。 */
+  /* ★ 2026-09 從「實心底 + 白字」改回「淺底 + 深字 + 左 3px 色塊」。
+     上面那段舊註解說明了為什麼當時非改成實心不可（Okabe-Ito 壓深四色當自己文字的底
+     數學上做不到 7:1）。新色票不是同一組:狀態色獨立於品牌方案 A／B,淺底與深字是
+     成對算出來的,實算:淺色 9.52~12.12:1、深色 8.63~9.65:1(見上方「狀態 badge 色」那一段的表)。
+     ★ 狀態色不跟著方案 A／B 換 —— 本專案的決定:狀態語意不該隨品牌配色漂移。
+     .badge-primary 是唯一例外:它表示的是「主要 / 進行中」,屬於品牌語意,所以吃 --primary-tint。 */
+  .badge-primary {
+    background-color: var(--primary-tint);
+    color: var(--primary-tint-fg);
+    border-left-color: var(--primary);
+  }
+  .badge-success {
+    background-color: var(--st-green-bg);
+    color: var(--st-green-fg);
+    border-left-color: var(--st-green-bar);
+  }
+  .badge-warning {
+    background-color: var(--st-amber-bg);
+    color: var(--st-amber-fg);
+    border-left-color: var(--st-amber-bar);
+  }
+  .badge-danger {
+    background-color: var(--st-red-bg);
+    color: var(--st-red-fg);
+    border-left-color: var(--st-red-bar);
+  }
+  .badge-muted {
+    background-color: var(--st-neutral-bg);
+    color: var(--st-neutral-fg);
+    border-left-color: var(--st-neutral-bar);
+  }
+  /* 其餘四個色相,給客戶階段用（階段配色由後台設定挑,見 lib/app-settings.tsx 的 STAGE_COLOR_NAMES） */
+  .badge-info {
+    background-color: var(--st-info-bg);
+    color: var(--st-info-fg);
+    border-left-color: var(--st-info-bar);
+  }
+  .badge-teal {
+    background-color: var(--st-teal-bg);
+    color: var(--st-teal-fg);
+    border-left-color: var(--st-teal-bar);
+  }
+  .badge-purple {
+    background-color: var(--st-purple-bg);
+    color: var(--st-purple-fg);
+    border-left-color: var(--st-purple-bar);
+  }
+  .badge-pink {
+    background-color: var(--st-pink-bg);
+    color: var(--st-pink-fg);
+    border-left-color: var(--st-pink-bar);
+  }
+
+  /* ---- Page heading + toolbar ------------------ */
+  .page-h1 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    line-height: 1.3;
+    color: var(--text);
+  }
+  .page-h2 {
+    font-size: 1rem;
+    font-weight: 600;
+    line-height: 1.4;
+    color: var(
+      --area-accent
+    ); /* 與 base 層的 main h2 同色,全站標題一致(accent 對 surface 最低 8.41、對 background 最低 7.48) */
+  }
+  .page-subtle {
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
+
+  /* ---- Inline meta(key-value 顯示)-------------- */
+  .meta-row {
+    display: grid;
+    grid-template-columns: 7rem 1fr;
+    gap: 0.5rem;
+    padding: 0.375rem 0;
+    border-bottom: 1px solid var(--bg-subtle);
+    font-size: 0.875rem;
+  }
+  .meta-row:last-child {
+    border-bottom: none;
+  }
+  .meta-row dt {
+    color: var(--text-muted);
+  }
+  .meta-row dd {
+    font-weight: 500;
+    word-break: break-word;
+  }
+
+  /* ---- Flash 訊息 -------------------------------- */
+  /* 元件規格 提示訊息:內距 14px 16px / 圓角 8px / 左側 4px 語意色 / 內文 14px 1.7,
+     四種固定符號 ✓ ！ ⚠ i 由 call site 放在文字前面（狀態不能只靠顏色）。
+     ★ 底色回來了:新色票的狀態淺底與深字是成對算的(淺色 9.52~12.12:1、深色 8.63~9.65:1),
+       不再是舊註解說的「語意色當自己文字的底」那個做不到的形狀。 */
+  .flash {
+    padding: 0.875rem 1rem;
+    border-radius: var(--r-md);
+    font-size: 0.875rem;
+    line-height: 1.7;
+    border: 1px solid transparent;
+    border-left-width: 4px;
+    background-color: var(--st-neutral-bg);
+    color: var(--st-neutral-fg);
+    border-left-color: var(--st-neutral-bar);
+  }
+  .flash-info {
+    background-color: var(--st-info-bg);
+    color: var(--st-info-fg);
+    border-left-color: var(--st-info-bar);
+  }
+  /* ── 為什麼訊息條不再有淡底 ────────────────────────────────────────
+   * ★ 這一整段講的是 2026-08 舊色票時代的決定,數字是那一版的:10% 同色淡底把文字
+   * 壓到 6.48~6.84:1(白底)、6.22~6.56:1(card 內),四種全部跌破 7:1。
+   * 現行色票已經改回「狀態淺底 + 成對的狀態深字」(見上面 .flash-* 的實際宣告),
+   * 所以下面那個「拿掉底色」的結論已經不是現況,留著只是說明當時為什麼那樣選。
+   * 但訊息條跟徽章的解法不一樣 —— 徽章是幾個字的小膠囊,翻成白字實心沒有代價;
+   * 訊息條是 14px 的一段句子,整條翻成白字實心會變成很吵的色塊,而且長句白字反白
+   * 本來就比深字難讀。這裡選擇「拿掉底色」:
+   *   文字直接坐在白底 / card 底上 → 7.56~8.04:1(白)、7.23~7.69:1(surface)✓
+   *   狀態訊號仍然有兩層:1px 同色外框(對底 ≥ 7.23:1,遠高於 1.4.11 的 3:1)
+   *   以及訊息文字本身(1.4.1 要求的「不只靠顏色」由文字承載,這點沒變)。
+   * 底色宣告直接刪掉而不是寫 transparent,是為了讓訊息條放進任何容器都自動吃
+   * 容器的底,不會出現「card 裡有一塊比 card 白的方框」。 */
+  .flash-success {
+    background-color: var(--st-green-bg);
+    color: var(--st-green-fg);
+    border-left-color: var(--st-green-bar);
+  }
+  .flash-error {
+    background-color: var(--st-red-bg);
+    color: var(--st-red-fg);
+    border-left-color: var(--st-red-bar);
+  }
+  .flash-warning {
+    background-color: var(--st-amber-bg);
+    color: var(--st-amber-fg);
+    border-left-color: var(--st-amber-bar);
+  }
+
+  /* ---- Admin 側邊選單(admin/layout.tsx)-------------
+   * 方案 A 淺色實算:側欄底 --sidebar-bg #06333C + 側欄字 --sidebar-fg #EAF2F3 = 11.96:1;
+   * 頂端使用者區塊再深一階 --color-sidebar-deep #052A31(同一組字 13.40:1);
+   * 目前所在項目 --sidebar-sel-bg #0D4653 底 + --sidebar-sel-fg #FFFFFF 字 = 10.41:1;
+   * hover --sidebar-hover-bg #093D48 + 側欄字 = 10.43:1。
+   * 寬度(12rem)與字級(text-sm)由 layout.tsx 的 grid 與 class 決定,這裡不動。 */
+  .admin-sidebar {
+    background-color: var(--sidebar-bg);
+    color: var(--sidebar-fg);
+    border-radius: var(--r-lg);
+    overflow: hidden;
+    box-shadow: var(--sh);
+  }
+  /* 頂端使用者區塊:比側欄底再深一階。--color-sidebar-deep 是由 --sidebar-bg 推導的
+     （新系統沒有這個變數,見 @theme 的註解）,淺側欄變體下它會變成「比淺底更深」,
+     反差方向一致,不會消失。 */
+  .admin-sidebar-head {
+    background-color: var(--color-sidebar-deep);
+    color: var(--sidebar-fg);
+    padding: 0.75rem;
+    border-bottom: 1px solid var(--sidebar-hover-bg);
+  }
+  /* 規格:側欄分組標題 32px / 8px 12px / 12px 600 / 字距 0.04em。
+     色用 --sidebar-fg 不用淡化版 —— 新系統只給一個側欄文字色,而它就是 AAA 的那個。 */
+  .admin-sidebar-head .admin-sidebar-kicker {
+    color: var(--sidebar-fg);
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .admin-sidebar-role {
+    display: inline-flex;
+    margin-top: 0.25rem;
+    padding: 0.0625rem 0.5rem;
+    border-radius: var(--radius-sm);
+    background-color: var(--sidebar-hover-bg);
+    color: var(--sidebar-fg);
+    font-size: 0.75rem;
+  }
+  .admin-nav-link {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    /* 規格:側欄項目 44px / 0 14px / 圓角 6px / 15px 400(選中 700)。
+       選中 = 底 --sidebar-sel-bg ＋字 --sidebar-sel-fg ＋左側 3px --sidebar-sel-bar。 */
+    border-radius: var(--r-sm);
+    padding: 0 0.875rem;
+    font-size: 0.9375rem;
+    color: var(--sidebar-fg);
+    text-decoration: none;
+    min-height: 44px; /* 2.5.5 AAA */
+    border-left: 3px solid transparent;
+  }
+  .admin-nav-link:hover {
+    background-color: var(--sidebar-hover-bg);
+  }
+  .admin-nav-link[aria-current='page'] {
+    background-color: var(--sidebar-sel-bg);
+    color: var(--color-sidebar-active-foreground); /* = var(--sidebar-sel-fg) */
+    border-left-color: var(--sidebar-sel-bar);
+    font-weight: 700;
+  }
+  /* 規格:側欄項目焦點 = outline 2px --sidebar-sel-bar,offset −2px（畫在項目內側,
+     不會跟相鄰項目的框疊到,也不會被側欄的 overflow:hidden 裁掉）。 */
+  .admin-nav-link:focus-visible {
+    outline: 2px solid var(--sidebar-sel-bar);
+    outline-offset: -2px;
+  }
+  .admin-nav-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 0.5rem;
+    border-radius: 9999px;
+    /* 規格:側欄未讀數字 24px / 最小寬 24px / 圓角 999px / 底 --accent-pale / 13px 700 tabular-nums */
+    min-height: 24px;
+    min-width: 24px;
+    justify-content: center;
+    background-color: var(--accent-pale);
+    color: var(
+      --accent-pale-fg
+    ); /* --accent-pale-fg #6B2A05 on --accent-pale #FFD9C2 = 8.15:1(方案 A 淺色實算) */
+    font-size: 0.8125rem;
+    font-weight: 700;
+    line-height: 1.5;
+    font-variant-numeric: tabular-nums;
+  }
+  .admin-sidebar-logout {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 44px;
+    padding: 0.5rem 0.75rem;
+    border: 1.5px solid var(--sidebar-sel-bar);
+    border-radius: var(--r-sm);
+    background-color: transparent;
+    color: var(--sidebar-fg);
+    font-size: 0.9375rem;
+    font-weight: 700;
+  }
+  .admin-sidebar-logout:hover {
+    background-color: var(--sidebar-hover-bg);
+  }
+
+  /* ---- Modal(對話框)---------------------------- */
+  /* 各頁的彈窗統一用這兩個 class,間距 / 陰影 / 圓角一致 */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background-color: rgb(0 0 0 / 0.5);
+  }
+  .modal-panel {
+    position: relative;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    /* 元件規格 彈出視窗:圓角 10px / 1px --border-strong / 遮罩 rgba(0,0,0,.5) / 最大 80vh */
+    border: 1px solid var(--border-strong);
+    border-radius: var(--r-lg);
+    background-color: var(--bg-card);
+    padding: var(--pad-card);
+    box-shadow: var(--sh-hover);
+  }
+}
+
+/* ---- root layout main:admin 路徑時放寬 max-width ---- */
+/* 因為 layout.tsx 是 server component 拿不到 pathname,改在 admin/layout.tsx 用負 margin 突破 */
+
+/* ============================================================
+ * @layer utilities — 段落間距(WCAG 2.1 AAA 1.4.8 Visual Presentation)
+ *
+ * ── 數字 ────────────────────────────────────────────────────
+ * body 行距 = 1.6 × 16px = 25.6px,AAA 要求段距 ≥ 1.5 × 行距 = 38.4px。
+ * 舊值是 1.6em = 25.6px,比值剛好 1.00 —— 差了一半,而註解與 /accessibility
+ * 兩處卻都宣稱「大於 1.5 倍」。
+ *
+ * 為什麼是 max(2.4em, 2.4rem) 而不是單純 2.4em:
+ * em 對的是「後面那一段自己的 font-size」。一段 16px 正文(行距 25.6px,
+ * 需要 38.4px)後面接一段 .page-subtle(13px),2.4em 只有 31.2px,不夠。
+ *   - 小字段落靠 2.4rem 拿到 38.4px 的底線,守住前一段正文的行距
+ *   - 大字段落(.text-lg 行距 28px,需要 42px)靠 2.4em 放大到 43.2px
+ *
+ * ── ★ 為什麼放在 utilities 而不是 base ──────────────────────
+ * Tailwind v4 的層順序是 properties < theme < base < components < utilities。
+ * `space-y-*` 產生的是
+ *     @layer utilities { :where(.space-y-3>:not(:last-child)){margin-block-start:0} }
+ * `margin-block-start` 與 `margin-top` 在 horizontal-tb 下是同一個實體邊,
+ * 而 utilities 整層排在 base 後面 —— 層贏過 specificity,所以只要段落**不是**
+ * 容器的最後一個子元素(例如 section.card.space-y-3 裡的 h2 / p / ul / p),
+ * 它的上邊距就會被歸零,base 那條 p+p 完全不生效。
+ * 這件事在原始碼裡看不出來(兩條都在),實測 /privacy 有 4 處、/accessibility
+ * 有 1 處落在這個形狀,實際間距只有 12px,比值 0.47。
+ *
+ * 放進 utilities 之後同層比 specificity:
+ *   p+p                                    = (0,0,2)  ← 贏
+ *   :where(.space-y-3>:not(:last-child))   = (0,0,0)
+ *   .mt-6                                  = (0,1,0)  ← 仍然贏得過本規則
+ * 也就是「擋得住 space-y 的靜默歸零,但擋不住 call site 明寫的 .mt-*」,
+ * 這正是要的方向:call site 看得見的決定保留,看不見的 action-at-a-distance 擋掉。
+ *
+ * ── ★ 為什麼要用 `.prose` 收斂,不能全站套 ────────────────────
+ * 上面那段推論只對「長篇正文」成立。這條規則一旦全域生效,它同一個
+ * (0,0,2) 的 specificity 也會贏過**刻意排緊**的容器,把 4px / 8px 的節奏
+ * 一律撐成 38.4px。實測(2026-08,產物 CSS + 產物 HTML 量出來的)受害處:
+ *   全站頁尾 div.space-y-2 兩個 p.text-sm      8px → 38.4px(4.8×,16 頁每頁一處)
+ *   後台詳情頁 meta 卡 section.card.space-y-1  4px → 38.4px(9.6×,3 組)
+ *   巢狀結果面板 div.min-w-0.space-y-1         4px → 38.4px(9.6×)
+ *   多步驟表單 Field 的 hint + error           4px → 38.4px(9.6×)
+ * 最後一項是實質傷害:紅字錯誤訊息掉在提示文字下方 38.4px,看起來像下一個
+ * 欄位的標題而不是這一格的錯誤 —— 錯誤訊息離欄位越遠越不容易被看到,
+ * 這違反 3.3.1 Error Identification 的意圖(反而不是在滿足 1.4.8)。
+ *
+ * 1.4.8 Visual Presentation 管的是「blocks of text」——連續散文。頁尾的兩行
+ * 短標、meta 卡的四個鍵值列、欄位的 hint/error 都不是 blocks of text,
+ * 它們的間距是版面決策,不該被無障礙規則遠端接管。
+ *
+ * 所以改成**明確 opt-in**:只有掛了 `.prose` 的子樹才吃這條規則。
+ *   - `.prose` 由路由層的 layout.tsx 掛上(app/privacy/layout.tsx、
+ *     app/accessibility/layout.tsx),不是靠某個 space-y-* 的值去猜。
+ *     用 space-y-* 猜一定錯:/accessibility 的正文段落也在 div.space-y-2 裡,
+ *     跟頁尾用同一個 utility,同一個 class 兩種意圖,猜不出來。
+ *   - 新增長篇正文頁時,在該路由的 layout 包一層 `.prose` 就會自動吃到。
+ *   - 前綴用 `:where(.prose)` 而不是 `.prose`,是為了讓 specificity 維持在
+ *     (0,0,2) 不變 —— 上面那段「贏得過 space-y、輸給 call site 的 .mt-*」的
+ *     結論繼續成立。改成 `.prose p+p` 會變成 (0,1,2),連 .mt-* 都蓋掉。
+ *
+ * 實際數字以建置產物 CSS 為準
+ * 把層疊真的算一遍,雙向判定:
+ *   `.prose` 內的相鄰段落 → 段距 ÷ 行距 < 1.5 就紅燈(AAA 下限)
+ *   `.prose` 外的相鄰段落 → 邊距只要是被這條規則搶走的就紅燈(外溢上限)
+ * ============================================================ */
+@layer utilities {
+  :where(.prose) p + p,
+  :where(.prose) p + ul,
+  :where(.prose) p + ol,
+  :where(.prose) ul + p,
+  :where(.prose) ol + p {
+    margin-top: max(2.4em, 2.4rem);
+  }
+}
+
+/* ============================================================
+ * 2026-09 配色重整:不逐頁改 tsx 的兩條「攔截」規則
+ *
+ * ★ 為什麼寫在所有 @layer 之外(unlayered)
+ *   Tailwind v4 的層順序是 base < components < utilities,而 utilities 層裡的
+ *   `.border` 會宣告 border-width:1px、`.bg-foreground` 會宣告 background-color。
+ *   放在 components 層的規則不論 specificity 多高都輸給 utilities;
+ *   unlayered 的規則則贏過所有層(同 .env-badge 的做法),所以這兩條一定要寫在這裡。
+ *
+ * 1. 既有頁面大量用 `rounded-lg border border-border bg-surface p-4` 這串 utility 當卡片。
+ *    用屬性選擇器 [class~="rounded-lg"][class~="bg-surface"][class~="border"] 抓「同時有這三個
+ *    完整 class」的容器元素,補上與 .card 相同的頂端 4px 功能區色條與陰影。
+ *    只抓容器元素(div/section/article/form/aside/details),不抓 button / a / li ——
+ *    crm 頁有 `rounded-lg border border-border bg-surface … hover:bg-muted` 的按鈕,
+ *    按鈕頂上長一條色條會很怪。`bg-surface/95`(手機底部工具列)不等於 bg-surface,不會中。
+ *    一定要有 rounded-lg:rounded-md 的那些是提示框、表單小格、照片清單的 <li>,不是卡片。
+ *    再排除三種不是卡片的形狀:border-dashed(空狀態占位)、border-destructive(error.tsx 的
+ *    錯誤面板,紅框上面壓一條功能區色條會打架)、role="alert"(錯誤訊息條,顏色由訊息自己決定)。
+ *    Tailwind v4 對 CSS 檔裡的任意選擇器不做處理、原樣輸出(建置產物已驗過)。
+ * 2. crm 頁與客戶卡頁有黑底白字的按鈕(bg-foreground text-background),
+ *    統一覆寫成 primary 樣式(方案 A 淺色實算:白字 on --primary #084349 = 11.00:1;
+ *    hover --primary-hover #05353A = 13.32:1)。
+ *    hover:opacity-90 一起壓掉:白字疊 90% 的 primary 在白底上只剩 ~6.0:1,會破 AAA。
+ * ============================================================ */
+:is(
+    div,
+    section,
+    article,
+    form,
+    aside,
+    details
+  )[class~='rounded-lg'][class~='bg-surface'][class~='border']:not([class~='border-dashed']):not(
+    [class~='border-destructive']
+  ):not([role='alert']) {
+  border-top: 4px solid var(--area-accent);
+  box-shadow: var(--sh);
+}
+
+button.bg-foreground,
+a.bg-foreground {
+  background-color: var(--primary);
+  color: var(--primary-fg);
+  border-color: var(--primary);
+  font-weight: 700;
+}
+button.bg-foreground:hover,
+a.bg-foreground:hover {
+  background-color: var(--primary-hover);
+  border-color: var(--primary-hover);
+  color: var(--primary-fg);
+  opacity: 1;
+}
+button.bg-foreground:disabled {
+  opacity: 0.5;
+}
+
+/* ============================================================
+ * 防偽浮水印
+ *
+ * ★ 目前站上的浮水印是 components/Watermark.tsx,它自帶 .wm-root / .wm-cell 的
+ *   styled-jsx（含各斷點與列印時的 opacity）。那些數值是實測定案的,不動。
+ *   下面這一組 .watermark 是浮水印的樣式規格本體,放在這裡當單一事實來源,
+ *   之後若要把 Watermark.tsx 換成吃全域 class 就直接掛 .watermark。
+ * ★ 本專案的硬性限制:列印時浮水印必須保留,不提供關閉開關。
+ *   浮水印是這套系統的核心價值(見 README 開頭),一個可以關掉的防偽措施等於沒有;
+ *   理由與適用範圍寫在 設計基準。
+ * ============================================================ */
+.watermark {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  font: 400 13px/1.4 var(--font);
+  color: var(--text);
+  opacity: 0.06;
+}
+[data-theme='dark'] .watermark {
+  opacity: 0.1;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .watermark {
+    opacity: 0.1;
+  }
+}
+@media print {
+  .watermark {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 0.14 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+
+/* ============================================================
+ * 舊 token → 新變數對照（2026-09 併入設計系統時留下的）
+ *
+ * 舊 token 一個都沒有刪,全部改成指向新變數的別名（宣告在檔案上方的 @theme 裡），
+ * 所以既有頁面寫的 text-foreground / bg-surface / border-border / bg-primary …
+ * 一行都不用改就會跟著方案 A／B、淺色／深色、深／淺側欄一起換。
+ *
+ * | 舊 token                          | 新變數              |
+ * |-----------------------------------|---------------------|
+ * | --color-background                | --bg-page           |
+ * | --color-foreground                | --text              |
+ * | --color-surface                   | --bg-card           |
+ * | --color-surface-foreground        | --text              |
+ * | --color-muted                     | --bg-subtle         |
+ * | --color-muted-foreground          | --text-muted        |
+ * | --color-border                    | --border            |
+ * | --color-border-strong             | --border-strong     |
+ * | --color-label                     | --text-label        |
+ * | --color-sidebar                   | --sidebar-bg        |
+ * | --color-sidebar-deep              | （無對應）由 --sidebar-bg 壓深 82% 推導 |
+ * | --color-sidebar-hover             | --sidebar-hover-bg  |
+ * | --color-sidebar-foreground        | --sidebar-fg        |
+ * | --color-sidebar-muted             | 已移除（新系統只給一個側欄文字色，用 --color-sidebar-foreground） |
+ * | --color-sidebar-active            | --sidebar-sel-bar   |
+ * | --color-sidebar-active-foreground | --sidebar-sel-fg    |
+ * | --color-primary                   | --primary           |
+ * | --color-primary-foreground        | --primary-fg        |
+ * | --color-primary-hover             | --primary-hover     |
+ * | --color-destructive               | --danger            |
+ * | --color-destructive-foreground    | --danger-fg         |
+ * | --color-destructive-hover         | --danger-hover      |
+ * | --color-success                   | --success           |
+ * | --color-success-foreground        | --st-green-bg（--success 實底上的字） |
+ * | --color-warning                   | --warning           |
+ * | --color-warning-foreground        | --st-amber-bg（--warning 實底上的字） |
+ * | --color-ring                      | --focus             |
+ * | --color-area-crm / -tint          | --zone-dev / --zone-dev-tint   |
+ * | --color-area-apps / -tint         | --zone-app / --zone-app-tint   |
+ * | --color-area-review / -tint       | --zone-rev / --zone-rev-tint   |
+ * | --color-area-dashboard / -tint    | --zone-dash / --zone-dash-tint |
+ * | --color-area-system / -tint       | --zone-sys / --zone-sys-tint   |
+ *
+ * 新增（既有 token 沒有對應物）:
+ *   --area-tint-fg                 tint 底上的文字色（= --zone-*-tint-fg）
+ *   --st-*-bg / -fg / -bar         15 個狀態 badge 共用的 8 組色相,不隨方案 A／B 改變
+ *   --secondary-fg / --secondary-border / --secondary-hover-bg   次按鈕三態
+ *   --primary-tint / --primary-tint-fg / --primary-active        選中列、已完成步驟、按下態
+ *   --accent / --accent-strong / --accent-pale / --accent-pale-fg 全站唯一亮色（永不當文字的底）
+ *   --link / --link-hover          內文連結
+ *   --sh / --sh-hover              陰影
+ *   --r-sm / --r-md / --r-lg、--tap-min、--pad-card、--gap-*、--btn-h、--btn-px   尺寸
+ * ============================================================ */

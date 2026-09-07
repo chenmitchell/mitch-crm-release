@@ -1,0 +1,22 @@
+# apps/frontend 本地覆寫(大部分已由 repo 根 .gitignore 處理)
+
+# Next.js
+/.next/
+/out/
+next-env.d.ts
+
+# Env
+.env
+.env.*
+!.env.example
+
+# Build artifacts
+/dist/
+/.turbo/
+
+# Logs
+*.log
+
+# Accessibility 暫存報告(正式報告進 accessibility-reports/)
+/lighthouse-*.html
+/axe-*.json

@@ -1,0 +1,82 @@
+# ref:3687 mc/陳彥輔/米球®
+# ---------------------------------------------------------------------------
+# 相依套件更新。
+#
+# 這是個人維護的專案,不是全職團隊,所以刻意壓低頻率與同時開啟的 PR 數:
+# 一週一次、每個生態系最多 5 個 PR。淹掉的更新通知等於沒有更新通知。
+#
+# 安全性更新不受 open-pull-requests-limit 限制,GitHub 會另外送,這是刻意保留的。
+# ---------------------------------------------------------------------------
+version: 2
+updates:
+  # ── pnpm workspace(根目錄一份設定管全部)──────────────────
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '02:00'
+      timezone: Asia/Taipei
+    open-pull-requests-limit: 5
+    versioning-strategy: increase-if-necessary
+    commit-message:
+      prefix: 'chore(deps)'
+      prefix-development: 'chore(deps-dev)'
+    labels:
+      - dependencies
+    groups:
+      # 這幾組一定要一起升,分開升會出現版本對不起來的中間狀態
+      nestjs:
+        patterns:
+          - '@nestjs/*'
+      prisma:
+        patterns:
+          - 'prisma'
+          - '@prisma/*'
+      next-react:
+        patterns:
+          - 'next'
+          - 'react'
+          - 'react-dom'
+          - '@types/react'
+          - '@types/react-dom'
+      # 其餘的小版本更新併成一個 PR,不要一個套件一個 PR
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+
+  # ── GitHub Actions ────────────────────────────────────────
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+      timezone: Asia/Taipei
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: 'chore(ci)'
+    labels:
+      - dependencies
+      - ci
+
+  # ── 兩個 Dockerfile 的 base image ─────────────────────────
+  - package-ecosystem: docker
+    directory: /apps/backend
+    schedule:
+      interval: monthly
+      timezone: Asia/Taipei
+    open-pull-requests-limit: 2
+    commit-message:
+      prefix: 'chore(docker)'
+    labels:
+      - dependencies
+  - package-ecosystem: docker
+    directory: /apps/frontend
+    schedule:
+      interval: monthly
+      timezone: Asia/Taipei
+    open-pull-requests-limit: 2
+    commit-message:
+      prefix: 'chore(docker)'
+    labels:
+      - dependencies

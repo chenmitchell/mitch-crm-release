@@ -1,0 +1,33 @@
+# ref:3687 mc/陳彥輔/米球®
+# ---------------------------------------------------------------------------
+# 這個 repo 目前是個人維護,所以預設全部由著作權人 review。
+# fork 出去之後請把 @chenmitchell 換成你自己的帳號或團隊,否則這份檔案指到的是
+# 一個對你的 fork 沒有權限的人,GitHub 會靜默略過那條規則。
+#
+# CODEOWNERS 只在有開分支保護規則(Require review from Code Owners)時才有強制力,
+# 沒開的話它就只是自動指派 reviewer。
+# ---------------------------------------------------------------------------
+
+# 預設
+*                       @chenmitchell
+
+# 授權與治理:條款的任何修改都要由著作權人自己來
+/LICENSE                @chenmitchell
+/THIRD-PARTY-NOTICES.md @chenmitchell
+/SECURITY.md            @chenmitchell
+/CODE_OF_CONDUCT.md     @chenmitchell
+/CONTRIBUTING.md        @chenmitchell
+
+# CI 與掃描腳本:這幾支是公開 repo 的守門員,改壞了不會有人發現
+/.github/               @chenmitchell
+
+# 部署與機密相關
+/docker-compose.yml     @chenmitchell
+/deploy/                @chenmitchell
+/zeabur/                @chenmitchell
+/.env.example           @chenmitchell
+/.gitignore             @chenmitchell
+/.dockerignore          @chenmitchell
+
+# 資料庫結構:變更必須是純新增
+/apps/backend/prisma/   @chenmitchell

@@ -1,0 +1,223 @@
+# ref:3687 mc/陳彥輔/米球®
+# =============================================================
+# Mitch CRM — 下載自架用的 Docker Compose
+# =============================================================
+# 零設定啟動:
+#
+#   docker compose up -d
+#   # 瀏覽器打開 http://localhost:8080,系統會帶你走一次首次啟動精靈
+#   # (第二步就是設定你自己的管理員帳號密碼,不必去 log 裡抄任何東西)
+#
+# 沒有 .env 也跑得起來。缺的金鑰由 backend 的 entrypoint 自動產生,
+# 寫進 app-secrets 這個 volume。正式環境請自己在 .env 指定並離線備份,
+# 說明見 .env.example 與 README。
+#
+# 起四個容器:
+#   postgres  PostgreSQL 16,只在 compose 內網,不對 host 開埠
+#   backend   NestJS,內部 :8787,啟動時自動建表
+#   frontend  Next.js standalone,內部 :3000
+#   caddy     反向代理,唯一對外的埠(預設 8080)
+# 沒有一次性的初始化容器:署名紀錄與「要不要建初始管理員」都在 backend 啟動時做完
+# (apps/backend/src/main.ts),Zeabur 那條路線跑的是同一份程式碼。
+# 管理員帳號預設由瀏覽器上的首次啟動精靈建立,不必去 log 裡抄密碼。
+#
+# 前後端共用同一個網址、由 Caddy 依路徑分流,所以不必設 CORS,
+# 也不會遇到跨網域 cookie 被瀏覽器丟掉的問題。
+# =============================================================
+
+name: mitchcrm
+
+# backend 的環境變數。抽成 anchor 是為了讓疊加檔(docker-compose.external-db.yml)
+# 與之後可能新增的服務共用同一份,不必兩邊各抄一次。
+x-backend-env: &backend-env
+  NODE_ENV: production
+  PORT: ${BACKEND_PORT:-8787}
+  # 預設組出 compose 內建那台 postgres 的連線字串。
+  # 在 .env 直接設整串 DATABASE_URL 就會蓋掉它(接既有資料庫時用,
+  # 搭配 docker-compose.external-db.yml)。
+  DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-mitchcrm}:${POSTGRES_PASSWORD:-mitchcrm}@postgres:5432/${POSTGRES_DB:-mitchcrm}?schema=public}
+  # 資料庫由 DBA 管控、不允許應用程式自己建表的環境設 true(搭配
+  # docker-compose.external-db.yml)。這一行不能省:少了它,在 .env 設了
+  # MITCHCRM_SKIP_DB_PUSH=true 也進不到容器裡,entrypoint 照樣跑 prisma db push,
+  # 對著一個沒有 DDL 權限的帳號嘗試建表,只在 log 留一行警告。
+  MITCHCRM_SKIP_DB_PUSH: ${MITCHCRM_SKIP_DB_PUSH:-false}
+  # 前後端同網址,這個值同時當 CORS 白名單與對外連結的網址前綴
+  CORS_ORIGIN: ${PUBLIC_BASE_URL:-http://localhost:8080}
+  # 金鑰留空 = 由 entrypoint 自動產生並寫進 app-secrets volume。
+  # 只有一把:沒有更新權杖,還在操作的人靠滑動續期留著。
+  JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-}
+  # 離開多久之後要重新登入。還在操作的話效期過半會自動重簽,不會被踢出去。
+  JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-8h}
+  # 選填:兩個都留空就走首次啟動精靈,由第一個進站的人在瀏覽器設定管理員帳密。
+  # 要自動建管理員(自動化部署)才兩個都填,填了首次登入會強制改密碼。
+  SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-}
+  SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-}
+  LOGIN_MAX_ATTEMPTS: ${LOGIN_MAX_ATTEMPTS:-5}
+  LOGIN_LOCKOUT_MINUTES: ${LOGIN_LOCKOUT_MINUTES:-30}
+  # 錯誤記錄的保留期與同訊息合併窗。少了這兩行轉發,在 .env 調了不會生效也不會報錯,
+  # 後端一律用內建預設(30 天 / 60 分鐘)。
+  ERROR_LOG_RETENTION_DAYS: ${ERROR_LOG_RETENTION_DAYS:-30}
+  ERROR_LOG_DEDUPE_WINDOW_MINUTES: ${ERROR_LOG_DEDUPE_WINDOW_MINUTES:-60}
+  # 稽核記錄的保留期(天)。0 = 永不刪除,其餘只接受 90 到 3650。
+  # 少了這一行轉發,在 .env 調了不會生效也不會報錯,後端一律用內建預設(730 天)。
+  AUDIT_LOG_RETENTION_DAYS: ${AUDIT_LOG_RETENTION_DAYS:-730}
+  THROTTLE_TTL_SECONDS: ${THROTTLE_TTL_SECONDS:-60}
+  THROTTLE_LIMIT_DEFAULT: ${THROTTLE_LIMIT_DEFAULT:-100}
+  THROTTLE_LIMIT_STRICT: ${THROTTLE_LIMIT_STRICT:-10}
+  # 只有 Caddy 一層 proxy,所以是 1。前面再加 LB 或 CDN 就每層 +1。
+  TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-1}
+  # 純 http 試跑必須 false,否則瀏覽器會丟掉 cookie(症狀:登入完馬上被踢回登入頁)
+  COOKIE_SECURE: ${COOKIE_SECURE:-false}
+  # 前後端不同網域時要設 none(並且 https + COOKIE_SECURE=true)。
+  # 沒有轉發進來的話,使用者在 .env 設了不會生效也不會報錯。
+  COOKIE_SAMESITE: ${COOKIE_SAMESITE:-lax}
+  # 選用:拜訪地圖的地理編碼(OpenStreetMap Nominatim)聯絡信箱
+  NOMINATIM_EMAIL: ${NOMINATIM_EMAIL:-}
+  # 選用:Microsoft Entra ID 單一登入。
+  #
+  # 這四個憑證值只能從環境變數來 —— 後台那一頁存的是政策(誰能登入、要不要自動建帳號),
+  # 不存憑證。少了這幾行轉發,在 .env 填了也進不到容器裡:登入頁不會出現
+  # Microsoft 按鈕,而且沒有任何錯誤訊息,看起來就像功能壞掉。
+  # 全部留空就是不啟用 SSO,只有帳號密碼登入,不會因此啟動失敗。
+  ENTRA_TENANT_ID: ${ENTRA_TENANT_ID:-}
+  ENTRA_CLIENT_ID: ${ENTRA_CLIENT_ID:-}
+  ENTRA_CLIENT_SECRET: ${ENTRA_CLIENT_SECRET:-}
+  # 必須與 Entra 應用程式註冊裡填的重新導向 URI 一字不差,結尾不要多斜線
+  ENTRA_REDIRECT_URI: ${ENTRA_REDIRECT_URI:-}
+  # 下面三個後台也能改,而且後台的值優先。這裡只是第一次上線時的起始值。
+  ENTRA_ALLOWED_DOMAINS: ${ENTRA_ALLOWED_DOMAINS:-}
+  ENTRA_AUTO_PROVISION: ${ENTRA_AUTO_PROVISION:-false}
+  ENTRA_POST_LOGIN_URL: ${ENTRA_POST_LOGIN_URL:-}
+
+services:
+  # ── 資料庫 ────────────────────────────────────────────────
+  # 只在 compose 內網開放,不 publish 到 host。
+  #
+  # 要改接既有的 PostgreSQL:不要把這個 service 註解掉。
+  # backend 的 depends_on 指著它,少了這一段連 `docker compose config` 都過不了。
+  # 正確做法是疊 docker-compose.external-db.yml,說明寫在那份檔案裡。
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-mitchcrm}
+      POSTGRES_USER: ${POSTGRES_USER:-mitchcrm}
+      # 有預設值是為了讓零設定啟動成立。這台資料庫不對 host 開埠,
+      # 只有 compose 內網連得到,但正式環境仍請在 .env 自行指定。
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mitchcrm}
+      POSTGRES_INITDB_ARGS: '--encoding=UTF8'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-mitchcrm} -d ${POSTGRES_DB:-mitchcrm}']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+
+  # ── 後端 ─────────────────────────────────────────────────
+  # build context 是 repo 根目錄(Dockerfile 會 COPY packages/*)。
+  # 建表在 entrypoint 裡做,不需要人工跑 migration。
+  backend:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment: *backend-env
+    volumes:
+      # 自動產生的 JWT 簽章金鑰放這裡。刪掉這個 volume 等同刪掉金鑰:
+      # 下次啟動會產生新的一把,所有人的登入狀態失效,要重新登入。
+      - app-secrets:/var/lib/mitchcrm/secrets
+    expose:
+      - '${BACKEND_PORT:-8787}'
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:'+(process.env.PORT||8787)+'/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+  # ── 沒有一次性的初始化容器 ────────────────────────────────
+  # 以前這裡有一個 `bootstrap` 服務,用 builder stage 跑 scripts/seed-admin.ts
+  # 寫署名紀錄。它在零設定安裝(直接 docker compose up -d,.env 什麼都沒填)時
+  # 必定 exit 1:
+  #   - 共用 backend 那份 env,而 JWT_ACCESS_SECRET 的預設是空字串
+  #   - 沒掛 app-secrets volume,所以拿不到 backend 自動產生的那把金鑰
+  #   - target: builder,而自動產生金鑰的 ENTRYPOINT 是 runtime stage 才設的,不會執行
+  # 於是 seed-admin.ts 的 env 驗證直接失敗,使用者在號稱零設定的安裝之後
+  # 會看到一個 exited(1) 的容器與一段紅色 log,而署名紀錄從來沒寫進去。
+  #
+  # 署名紀錄本來就是 idempotent 的,已經移進後端啟動流程(apps/backend/src/main.ts,
+  # 就在 ensureSeedAdmin 旁邊),Zeabur 那條路線跑的也是同一份程式碼,兩條路線一致。
+  # 要手動補寫的話:pnpm --filter @mitchcrm/backend run seed:attribution
+
+  # ── 前端 ─────────────────────────────────────────────────
+  # build context 是 repo 根目錄,跟 backend 一樣。
+  # 前端的 package.json 有 "@mitchcrm/shared": "workspace:*",
+  # context 收在 apps/frontend 的話 pnpm install 會找不到那個 workspace 套件。
+  # NEXT_PUBLIC_* 是 build 時編進 bundle 的,改了 PUBLIC_BASE_URL
+  # 一定要重新 build:docker compose up -d --build
+  frontend:
+    build:
+      context: .
+      dockerfile: apps/frontend/Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8080}
+        NEXT_PUBLIC_SITE_URL: ${PUBLIC_BASE_URL:-http://localhost:8080}
+        NEXT_PUBLIC_APP_ENV: ${NEXT_PUBLIC_APP_ENV:-production}
+        # next build 會去 fonts.googleapis.com / fonts.gstatic.com 抓字型(next/font/google)。
+        # 建置機器連不到那兩個網域的話,在 .env 設成
+        # /src/scripts/build/next-font-google-mock.cjs,改用離線替身,畫面退回系統字型。
+        # 留空 = 走真正的 Google Fonts。
+        NEXT_FONT_GOOGLE_MOCKED_RESPONSES: ${NEXT_FONT_GOOGLE_MOCKED_RESPONSES:-}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: '3000'
+      HOSTNAME: 0.0.0.0
+    expose:
+      - '3000'
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))"
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ── 反向代理 ──────────────────────────────────────────────
+  # 唯一對外的容器。SITE_ADDRESS 填成網域時 Caddy 會自動申請
+  # Let's Encrypt 憑證,此時要把 APP_PORT 設 80、APP_HTTPS_PORT 設 443,
+  # 而且該網域的 DNS 必須已經指到這台機器。
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - backend
+      - frontend
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+      BACKEND_PORT: ${BACKEND_PORT:-8787}
+    ports:
+      - '${APP_PORT:-8080}:80'
+      - '${APP_HTTPS_PORT:-8443}:443'
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  postgres-data:
+  app-secrets:
+  caddy-data:
+  caddy-config:

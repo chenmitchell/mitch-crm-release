@@ -1,0 +1,56 @@
+{
+  "name": "mitchcrm-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Mitch CRM — 實地訪查型 CRM",
+  "license": "MPL-2.0",
+  "packageManager": "pnpm@10.33.2",
+  "engines": {
+    "node": ">=20.11.0 <23.0.0",
+    "pnpm": ">=10.0.0"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint && pnpm lint:scripts",
+    "lint:scripts": "node scripts/lint/run-eslint-node.mjs \"scripts/**/*.mjs\" \"scripts/**/*.cjs\"",
+    "type-check": "turbo run type-check",
+    "clean": "turbo run clean && rm -rf node_modules",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,mjs,cjs,json,css,yml,yaml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,mjs,cjs,json,css,yml,yaml}\"",
+    "seed:admin": "pnpm --filter ./apps/backend run seed:admin",
+    "db:push": "pnpm --filter ./apps/backend exec prisma db push",
+    "migrate:deploy": "echo '這個 repo 沒有 prisma/migrations/,建表走 prisma db push,不是 prisma migrate。請改用 pnpm db:push;容器部署由 deploy/backend-entrypoint.sh 自動做掉,不必手動下。' >&2 && exit 1",
+    "migrate:dev": "echo '這個 repo 沒有 prisma/migrations/,建表走 prisma db push,不是 prisma migrate。請改用 pnpm db:push;容器部署由 deploy/backend-entrypoint.sh 自動做掉,不必手動下。' >&2 && exit 1",
+    "docker:build": "docker compose build",
+    "docker:config": "docker compose config"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "prettier": "^3.9.6",
+    "tsx": "^4.23.13",
+    "turbo": "^2.10.12",
+    "typescript": "^5.9.3"
+  },
+  "pnpm": {
+    "_overridesWhy": "ref:3687 mc/陳彥輔/米球® — 這幾條都是「上游套件把有已知漏洞的版本釘死了」的相依,自己升不上去。CI 的 `pnpm audit --audit-level=high` 會因為它們紅燈,所以在這裡強制拉到修好的版本。上游放寬之後這一條就可以拿掉(拿掉之後 audit 那一步會告訴你還需不需要)。",
+    "overrides": {
+      "glob@>=10.2.0 <10.5.0": ">=10.5.0",
+      "lodash@<4.18.0": ">=4.18.0",
+      "multer@<2.2.0": ">=2.2.0",
+      "picomatch@>=4.0.0 <4.0.4": ">=4.0.4",
+      "postcss@<8.5.18": ">=8.5.18",
+      "tmp@<0.2.6": ">=0.2.6"
+    },
+    "onlyBuiltDependencies": [
+      "@nestjs/core",
+      "@prisma/client",
+      "@prisma/engines",
+      "argon2",
+      "esbuild",
+      "prisma",
+      "sharp",
+      "unrs-resolver"
+    ]
+  }
+}

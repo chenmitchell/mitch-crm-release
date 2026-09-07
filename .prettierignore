@@ -1,0 +1,19 @@
+node_modules
+dist
+build
+.next
+.turbo
+coverage
+pnpm-lock.yaml
+# Markdown 不進 prettier。這個 repo 的文件是中文的,prettier 會重排清單縮排與
+# 表格寬度,產生一大批與內容無關的差異,而中文本來就沒有斷行寬度的問題。
+# package.json 的 format / format:check 兩支的副檔名清單要與這裡一致,
+# 不然會出現「腳本說會格式化、實際上被忽略」的落差。
+*.md
+
+# Playwright 的執行產物(見 .gitignore 同一段的說明)。
+# 少了這幾行,跑過一次瀏覽器測試之後 pnpm format:check 會因為
+# test-results/.last-run.json 而紅燈,而那個檔不是人寫的。
+test-results
+playwright-report
+blob-report

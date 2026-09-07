@@ -1,0 +1,7 @@
+{
+  "_attribution": "ref:3687 mc/陳彥輔/米球®",
+  "$schema": "https://zeabur.com/schema/zbpack.json",
+  "_comment": "Zeabur 服務名稱 frontend。一定要走 dockerfile,而且 build context 是 repo 根目錄:前端的 package.json 有 @mitchcrm/shared 這個 workspace 相依,收進 apps/frontend 會直接死在 ERR_PNPM_WORKSPACE_PKG_NOT_FOUND。所以不設 app_dir。",
+  "build_type": "dockerfile",
+  "dockerfile_path": "apps/frontend/Dockerfile"
+}

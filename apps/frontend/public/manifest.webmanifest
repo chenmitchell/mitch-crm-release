@@ -1,0 +1,17 @@
+{
+  "name": "Mitch CRM",
+  "short_name": "Mitch CRM",
+  "description": "實地訪查型 CRM:今日待辦、客戶看板、到訪打卡與拜訪地圖。需要網路連線",
+  "lang": "zh-TW",
+  "dir": "ltr",
+  "start_url": "/admin/crm/home",
+  "scope": "/",
+  "display": "minimal-ui",
+  "orientation": "any",
+  "theme_color": "#ffffff",
+  "background_color": "#ffffff",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
